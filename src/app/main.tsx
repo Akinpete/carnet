@@ -20,7 +20,8 @@ import Capture from "./routes/Capture.tsx";
 
 // Capture is the only screen in the initial bundle; the rest load on demand.
 const Settings = lazy(() => import("./routes/Settings.tsx"));
-const Review = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Review })));
+const Review = lazy(() => import("./routes/Review.tsx"));
+const Player = lazy(() => import("./session/Player.tsx"));
 const Journal = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Journal })));
 const Grammar = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Grammar })));
 
@@ -41,6 +42,8 @@ function PublicOnly({ children }: { children: ReactNode }) {
 const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><Login /></PublicOnly> },
   { path: "/signup", element: <PublicOnly><Signup /></PublicOnly> },
+  // The session player takes the whole screen: no tab bar, one exit.
+  { path: "/review/session", element: <RequireAuth><Suspense><Player /></Suspense></RequireAuth> },
   {
     element: <RequireAuth><Shell /></RequireAuth>,
     children: [

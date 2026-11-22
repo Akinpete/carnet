@@ -5,9 +5,15 @@ import { secureHeaders } from "hono/secure-headers";
 import type { AppEnv } from "./env.ts";
 import { notFound, onError } from "./middleware/onError.ts";
 import { auth } from "./routes/auth.ts";
+import { dumpRoutes } from "./routes/dumps.ts";
 import { me } from "./routes/me.ts";
+import { sessionRoutes } from "./routes/sessions.ts";
 
-const api = new Hono<AppEnv>().route("/auth", auth).route("/me", me);
+const api = new Hono<AppEnv>()
+  .route("/auth", auth)
+  .route("/me", me)
+  .route("/dumps", dumpRoutes)
+  .route("/sessions", sessionRoutes);
 
 export const app = new Hono<AppEnv>()
   .use(requestId())

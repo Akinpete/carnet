@@ -1,9 +1,11 @@
 import { NavLink, Outlet } from "react-router";
+import { useToday } from "../lib/review.ts";
 import { CaptureIcon, GrammarIcon, JournalIcon, ReviewIcon, SettingsIcon } from "./icons.tsx";
 import s from "./Shell.module.css";
 
-// Badges (inbox count, cards due, journal dot, stage) arrive with the data
-// they count, from M1 on. Never a streak.
+// Badges are the only prompt the product gives. Review shows cards left
+// today; the inbox count, journal dot and stage arrive with M2, M4 and M5.
+// Never a streak.
 const tabs = [
   { to: "/", label: "Capture", Icon: CaptureIcon },
   { to: "/review", label: "Review", Icon: ReviewIcon },
@@ -13,6 +15,10 @@ const tabs = [
 
 /** Bottom tab bar below 900px, left sidebar at 900px and up. */
 export function Shell() {
+  const today = useToday().data;
+  const left = today && (today.state === "ready" || today.state === "in_progress") ? today.total - today.answered : 0;
+  const badges: Record<string, string> = left > 0 ? { "/review": `${left} due` } : {};
+
   return (
     <div className={s.shell}>
       <aside className={s.sidebar}>
@@ -22,6 +28,7 @@ export function Shell() {
             <NavLink key={to} to={to} end className={s.sideLink}>
               <Icon />
               {label}
+              {badges[to] ? <span className={s.sideBadge}>{badges[to]}</span> : null}
             </NavLink>
           ))}
         </nav>
@@ -39,7 +46,8 @@ export function Shell() {
       <nav className={s.tabbar} aria-label="Main">
         {tabs.map(({ to, label }) => (
           <NavLink key={to} to={to} end className={s.tab}>
-            {label}
+            <span>{label}</span>
+            {badges[to] ? <span className={s.badge}>{badges[to]}</span> : null}
           </NavLink>
         ))}
       </nav>

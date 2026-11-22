@@ -2,7 +2,7 @@
 
 Learn French from the French you actually encounter. Collect it, drill it, speak it back.
 
-> **Status: pre-alpha.** The foundations (M0) are in place: sign-up, sign-in and an empty app shell. There are no learning features yet. See [Status](#status).
+> **Status: pre-alpha.** The first learning loop works: type a French word you met, and it comes back in a daily review session. Everything else is still to come. See [Status](#status).
 
 <!-- Screenshot goes here once a real screen exists: the ruled journal, or a speaking card mid-session. -->
 
@@ -23,12 +23,12 @@ Carnet has no streaks, no leagues, no placement test and no screen monitoring. Y
 
 ## Status
 
-The app shell and accounts exist. Nothing that teaches French does yet.
+The first loop works: typed capture with automatic look-up, one review session a day, and recognition and recall cards on a spaced-repetition schedule. It's now being used daily for two weeks to find out whether it's worth building the rest.
 
 | | Milestone | State |
 | --- | --- | --- |
 | M0 | Foundations: repo, auth, PWA shell, CI | Done |
-| M1 | The loop: typed capture, SM-2 scheduling, recognition and recall cards | **Next** |
+| M1 | The loop: typed capture, SM-2 scheduling, recognition and recall cards | **In use**: 14-day trial |
 | M2 | Real capture: paste, screenshots, links, voice notes, share target | Not started |
 | M3 | Voice and production: audio, speech input, open-form grading, diagnosis | Not started |
 | M4 | The journal | Not started |
@@ -55,6 +55,8 @@ npm run dev        # http://localhost:5173
 npm test           # runs inside the Workers runtime, with local D1 and KV
 npm run typecheck
 ```
+
+Word look-ups need an OpenAI-compatible model endpoint: put `AI_GATEWAY_URL` and `AI_API_KEY` in `.dev.vars`. Without them, everything else works and look-ups say they aren't set up.
 
 A self-hosted path (Node, Postgres and MinIO via `docker compose`, pointed at any OpenAI-compatible model endpoint) arrives with the public release.
 

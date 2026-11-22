@@ -15,8 +15,5 @@ export function Placeholder({ title, line }: { title: string; line: string }) {
   );
 }
 
-export const Review = () => (
-  <Placeholder title="Review" line="Once you've collected some words, your sessions will appear here." />
-);
 export const Journal = () => <Placeholder title="Journal" line="The ruled journal is still being built." />;
 export const Grammar = () => <Placeholder title="Grammar" line="The grammar stages are still being built." />;

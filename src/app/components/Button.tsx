@@ -1,9 +1,9 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 import s from "./primitives.module.css";
 
 type Variant = "primary" | "secondary" | "ink" | "quiet";
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = ComponentProps<"button"> & {
   variant?: Variant;
   block?: boolean;
 };
