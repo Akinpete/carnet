@@ -34,6 +34,7 @@ function listQuery(ctx: Ctx, userId: string, dumpId?: string) {
       lemma: words.lemma,
       pos: words.pos,
       translation: words.translation,
+      usageNote: words.usageNote,
       rung: userWords.rung,
     })
     .from(dumps)
@@ -52,7 +53,10 @@ const toView = (r: Row): DumpView => ({
   status: r.status,
   error: r.error,
   createdAt: r.createdAt,
-  word: r.lemma && r.pos && r.translation && r.rung ? { lemma: r.lemma, pos: r.pos, translation: r.translation, rung: r.rung } : null,
+  word:
+    r.lemma && r.pos && r.translation && r.rung
+      ? { lemma: r.lemma, pos: r.pos, translation: r.translation, rung: r.rung, usageNote: r.usageNote }
+      : null,
   // Committed without producing a pool entry: the word was already there.
   alreadyInPool: r.status === "committed" && !r.lemma,
 });

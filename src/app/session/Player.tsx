@@ -101,7 +101,8 @@ export default function Player() {
       },
     );
 
-    if (local.correct && !local.accentSlip) {
+    // A clean pass moves on by itself, unless there's a note worth reading.
+    if (local.correct && !local.accentSlip && !card.usageNote) {
       advanceTimer.current = setTimeout(advance, PASS_ADVANCE_MS);
     }
   };
@@ -196,9 +197,9 @@ type ViewProps<C extends Card> = {
   onContinue: () => void;
 };
 
-function Verdict({ shown, onContinue }: { shown: Shown; onContinue: () => void }) {
+function Verdict({ shown, note, onContinue }: { shown: Shown; note: string | null; onContinue: () => void }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const waits = !shown.correct || shown.accentSlip;
+  const waits = !shown.correct || shown.accentSlip || !!note;
   useEffect(() => {
     if (waits) ref.current?.focus();
   }, [waits]);
@@ -212,6 +213,7 @@ function Verdict({ shown, onContinue }: { shown: Shown; onContinue: () => void }
             : <span>Right.</span>
           : <span>Not quite. It's <strong>{shown.expected}</strong>.</span>}
       </p>
+      {note ? <p className={s.note}>{note}</p> : null}
       {waits ? (
         <Button ref={ref} variant="ink" block onClick={onContinue}>
           Continue
@@ -268,7 +270,7 @@ function RecognitionView({ card, shown, onAnswer, onContinue }: ViewProps<Extrac
             );
           })}
         </div>
-        {shown ? <Verdict shown={shown} onContinue={onContinue} /> : null}
+        {shown ? <Verdict shown={shown} note={card.usageNote ?? null} onContinue={onContinue} /> : null}
       </section>
       {!shown ? (
         <Button variant="quiet" className={s.dontKnow} onClick={() => onAnswer({ dontKnow: true })}>
@@ -321,7 +323,7 @@ function RecallView({ card, shown, onAnswer, onContinue }: ViewProps<Extract<Car
             </Button>
           ) : null}
         </form>
-        {shown ? <Verdict shown={shown} onContinue={onContinue} /> : null}
+        {shown ? <Verdict shown={shown} note={card.usageNote ?? null} onContinue={onContinue} /> : null}
       </section>
       {!shown ? (
         <Button variant="quiet" className={s.dontKnow} onClick={() => onAnswer({ dontKnow: true })}>

@@ -98,6 +98,7 @@ function InboxRow({ dump }: { dump: DumpView }) {
             {dump.word.lemma}
           </p>
           <p className={s.inboxMeta}>{dump.word.translation} · in the pool</p>
+          {dump.word.usageNote ? <p className={s.inboxNote}>{dump.word.usageNote}</p> : null}
         </div>
         <span className={s.label}>Rung {dump.word.rung}</span>
       </li>

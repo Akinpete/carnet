@@ -248,3 +248,14 @@
   line-height: 1.55;
   color: var(--ink-muted);
 }
+
+/* The usage note: the trap worth knowing, shown only after answering. */
+.note {
+  padding: 12px 14px;
+  border: 1px solid var(--warm-line);
+  border-radius: var(--radius-card);
+  background: var(--warm);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}

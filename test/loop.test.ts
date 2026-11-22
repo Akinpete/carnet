@@ -20,7 +20,13 @@ describe("capture", () => {
 
     const { dump: done } = await json<{ dump: DumpView }>(await me.call(`/dumps/${dump.id}`));
     expect(done.status).toBe("committed");
-    expect(done.word).toEqual({ lemma: "la grève", pos: "noun", translation: "the strike", rung: 1 });
+    expect(done.word).toEqual({
+      lemma: "la grève",
+      pos: "noun",
+      translation: "the strike",
+      rung: 1,
+      usageNote: "It looks like grief, but it means a strike.",
+    });
     expect(ai.calls).toEqual(["grève"]);
   });
 
@@ -102,6 +108,7 @@ describe("one session a day", () => {
     expect(card.type).toBe("recognition");
     if (card.type !== "recognition") return;
     expect(card.prompt).toBe("la grève");
+    expect(card.usageNote).toBe("It looks like grief, but it means a strike.");
     expect([...card.choices].sort()).toEqual(["the grave", "the gravel", "the grief", "the strike"]);
 
     const answer = await me.call(`/sessions/${session.id}/answer`, {

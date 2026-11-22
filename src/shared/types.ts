@@ -25,7 +25,7 @@ export type DumpView = {
   error: string | null;
   createdAt: number;
   /** The pool entry this dump produced. */
-  word: { lemma: string; pos: string; translation: string; rung: number } | null;
+  word: { lemma: string; pos: string; translation: string; rung: number; usageNote: string | null } | null;
   /** Committed, but the word was already in the pool. */
   alreadyInPool: boolean;
 };

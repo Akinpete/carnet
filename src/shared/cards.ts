@@ -5,6 +5,8 @@ type CardBase = {
   wordId: string;
   pos: string;
   gender: "m" | "f" | null;
+  /** The trap worth knowing, shown only after answering. Absent on cards stored before it existed. */
+  usageNote?: string | null;
 };
 
 /** Rung 1: here is the French — what does it mean? */

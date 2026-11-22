@@ -208,7 +208,7 @@
   border-radius: var(--radius-card);
   padding: 14px 16px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
@@ -259,4 +259,12 @@
   font-size: 15px;
   line-height: 1.55;
   color: var(--ink-muted);
+}
+
+/* The trap worth knowing, in amber like the canvas's review-before-commit list. */
+.inboxNote {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--amber);
 }

@@ -20,6 +20,7 @@ const columns = {
   gender: words.gender,
   translation: words.translation,
   gloss: words.gloss,
+  usageNote: words.usageNote,
   distractors: words.distractors,
 };
 
@@ -67,7 +68,7 @@ export function buildCards(selected: SelectedWord[], random: () => number = Math
     selected.filter((w) => w.wordId !== wordId).map((w) => w.translation);
 
   return selected.map((w): Card => {
-    const base = { wordId: w.wordId, pos: w.pos, gender: w.gender };
+    const base = { wordId: w.wordId, pos: w.pos, gender: w.gender, usageNote: w.usageNote };
     const rung = Math.min(w.rung, MAX_RUNG);
     if (rung >= 2) {
       return { ...base, rung: 2, type: "recall", prompt: w.translation, gloss: w.gloss, answer: w.lemma };
