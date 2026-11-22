@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Test (Workers runtime, local D1 and KV)
+        run: npm test
+      - name: Migrations match the schema
+        run: |
+          npx drizzle-kit generate --name drift-check
+          if [ -n "$(git status --porcelain migrations)" ]; then
+            echo "::error::migrations/ is out of date with src/db/schema.sqlite.ts. Run npm run db:generate and commit the result."
+            git status --porcelain migrations
+            exit 1
+          fi
+      - name: Build
+        run: npm run build

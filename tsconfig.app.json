@@ -1,0 +1,12 @@
+{
+  // The browser. It also type-checks the server sources it imports types
+  // from (`hc<Api>`); `node` types are here only for node:crypto in those.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "vite-plugin-pwa/client", "node"]
+  },
+  "include": ["src/app", "src/shared"]
+}

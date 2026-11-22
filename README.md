@@ -2,7 +2,7 @@
 
 Learn French from the French you actually encounter. Collect it, drill it, speak it back.
 
-> **Status: pre-alpha. Nothing runs yet.** The product spec and the core screen designs are finished. Code starts with milestone M0. See [Status](#status).
+> **Status: pre-alpha.** The foundations (M0) are in place: sign-up, sign-in and an empty app shell. There are no learning features yet. See [Status](#status).
 
 <!-- Screenshot goes here once a real screen exists: the ruled journal, or a speaking card mid-session. -->
 
@@ -23,12 +23,12 @@ Carnet has no streaks, no leagues, no placement test and no screen monitoring. Y
 
 ## Status
 
-There is no application code yet.
+The app shell and accounts exist. Nothing that teaches French does yet.
 
 | | Milestone | State |
 | --- | --- | --- |
-| M0 | Foundations: repo, auth, deployed PWA shell, CI, both runtime targets | **Next** |
-| M1 | The loop: typed capture, SM-2 scheduling, recognition and recall cards | Not started |
+| M0 | Foundations: repo, auth, PWA shell, CI | Done |
+| M1 | The loop: typed capture, SM-2 scheduling, recognition and recall cards | **Next** |
 | M2 | Real capture: paste, screenshots, links, voice notes, share target | Not started |
 | M3 | Voice and production: audio, speech input, open-form grading, diagnosis | Not started |
 | M4 | The journal | Not started |
@@ -44,17 +44,24 @@ Each milestone has a gate to meet before the next one starts. M1's gate is fourt
 - **Hosted:** Cloudflare Workers, D1, R2, KV and AI Gateway
 - **Self-hosted:** Node, Postgres and MinIO via `docker compose`, pointed at any OpenAI-compatible model endpoint, with no Cloudflare account needed
 
-## Running it
+## Running it locally
 
-Not yet, because there is nothing to run. Once M0 lands, this section will cover two paths:
+You need Node 22 or newer. No Cloudflare account is needed to run it locally.
 
-- **Run it yourself:** `docker compose up`, then `npm run dev:node`, with `AI_GATEWAY_URL` pointed at any OpenAI-compatible endpoint
-- **Deploy to Cloudflare:** the hosted path, using the `cf` CLI
+```bash
+npm install
+npm run db:migrate:local
+npm run dev        # http://localhost:5173
+npm test           # runs inside the Workers runtime, with local D1 and KV
+npm run typecheck
+```
+
+A self-hosted path (Node, Postgres and MinIO via `docker compose`, pointed at any OpenAI-compatible model endpoint) arrives with the public release.
 
 ## Contributing
 
-It's too early for code contributions because there is no code. A `CONTRIBUTING.md` and a set of `good first issue`s will arrive with the public release (M6).
+It's too early for code contributions: the foundations are still settling. A `CONTRIBUTING.md` and a set of `good first issue`s will arrive with the public release (M6).
 
 ## Licence
 
-Carnet is intended to be released under AGPL-3.0. The `LICENSE` file will be added in M0.
+Carnet is released under the [GNU AGPL-3.0](LICENSE).

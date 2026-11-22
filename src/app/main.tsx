@@ -1,0 +1,70 @@
+import "@fontsource/archivo/latin-400.css";
+import "@fontsource/archivo/latin-500.css";
+import "@fontsource/archivo/latin-600.css";
+import "@fontsource/instrument-serif/latin-400.css";
+import "@fontsource/instrument-serif/latin-400-italic.css";
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "./styles/tokens.css";
+import "./styles/base.css";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, StrictMode, Suspense, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
+import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
+import { Shell } from "./components/Shell.tsx";
+import { ToastProvider } from "./components/Toast.tsx";
+import { useMe } from "./lib/session.ts";
+import { Login, Signup } from "./routes/Auth.tsx";
+import Capture from "./routes/Capture.tsx";
+
+// Capture is the only screen in the initial bundle; the rest load on demand.
+const Settings = lazy(() => import("./routes/Settings.tsx"));
+const Review = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Review })));
+const Journal = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Journal })));
+const Grammar = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Grammar })));
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { data: me, isPending } = useMe();
+  if (isPending) return null;
+  if (!me) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function PublicOnly({ children }: { children: ReactNode }) {
+  const { data: me, isPending } = useMe();
+  if (isPending) return null;
+  if (me) return <Navigate to="/" replace />;
+  return children;
+}
+
+const router = createBrowserRouter([
+  { path: "/login", element: <PublicOnly><Login /></PublicOnly> },
+  { path: "/signup", element: <PublicOnly><Signup /></PublicOnly> },
+  {
+    element: <RequireAuth><Shell /></RequireAuth>,
+    children: [
+      { index: true, element: <Capture /> },
+      { path: "review", element: <Suspense><Review /></Suspense> },
+      { path: "journal", element: <Suspense><Journal /></Suspense> },
+      { path: "grammar", element: <Suspense><Grammar /></Suspense> },
+      { path: "settings", element: <Suspense><Settings /></Suspense> },
+    ],
+  },
+  { path: "*", element: <Navigate to="/" replace /> },
+]);
+
+const queryClient = new QueryClient();
+
+const root = document.getElementById("root");
+if (!root) throw new Error("index.html is missing #root");
+
+createRoot(root).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
+    </QueryClientProvider>
+  </StrictMode>,
+);

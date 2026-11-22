@@ -1,0 +1,11 @@
+{
+  // Build tooling that runs in Node. The self-hosted entry (src/node/)
+  // joins this project in M6.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "lib": ["es2024"],
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts", "vitest.config.ts", "drizzle.config.ts"]
+}

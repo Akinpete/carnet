@@ -1,0 +1,198 @@
+/* Shared by the hand-built primitives: button, field, card, sheet, toast. */
+
+/* ---------- Button ---------- */
+.button {
+  min-height: var(--touch);
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+}
+
+.primary:not(:disabled):hover {
+  background: var(--accent-hover);
+}
+
+.secondary {
+  background: var(--paper);
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+
+.secondary:not(:disabled):hover {
+  border-color: var(--ink-faint);
+}
+
+/* The ink button: the correction slide's "Got it — next card". */
+.ink {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 500;
+  min-height: 52px;
+}
+
+.quiet {
+  background: transparent;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  padding: 0 4px;
+}
+
+.block {
+  width: 100%;
+}
+
+/* ---------- Mono label: machine state only, never prose ---------- */
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-label);
+}
+
+/* ---------- Field ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input {
+  min-height: 52px;
+  width: 100%;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--paper-raised);
+  font-size: 16px; /* 16px stops iOS zooming on focus */
+  color: var(--ink);
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+.input:disabled {
+  background: var(--paper-tint);
+  cursor: not-allowed;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--amber);
+}
+
+.hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-label);
+}
+
+.error {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--amber);
+}
+
+/* ---------- Card ---------- */
+.card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 16px;
+}
+
+/* ---------- Sheet (bottom sheet on phones, centred dialog on desktop) ---------- */
+.sheet {
+  margin: auto auto 0;
+  width: 100%;
+  max-width: 560px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+.sheet::backdrop {
+  background: rgb(17 17 16 / 0.4);
+}
+
+.sheetBody {
+  padding: 20px var(--gutter) calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sheetTitle {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+@media (min-width: 900px) {
+  .sheet {
+    margin: auto;
+    border-bottom: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+}
+
+/* ---------- Toast ---------- */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 2 * var(--gutter)));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: var(--radius-card);
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  pointer-events: auto;
+}
+
+@media (min-width: 900px) {
+  .toasts {
+    bottom: 32px;
+  }
+}

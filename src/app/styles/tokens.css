@@ -1,0 +1,87 @@
+/*
+ * Design tokens, extracted from the Carnet design canvas (the source of
+ * truth for visual decisions). Light values are taken from the artboards.
+ * Dark values marked "provisional" are not on the canvas yet.
+ */
+:root {
+  color-scheme: light;
+
+  /* Grounds */
+  --paper: #f7f5f0; /* app ground */
+  --paper-raised: #ffffff; /* cards, tab bar */
+  --paper-journal: #fbfaf7; /* journal ground, lighter than paper */
+  --paper-tint: #efebe1; /* active tab, source block */
+  --warm: #f4efe3; /* correction ground */
+
+  /* Ink */
+  --ink: #111110; /* text, and the dark ground */
+  --ink-2: #2e2d2a; /* body text on cards */
+  --ink-muted: #5c5a54;
+  --ink-label: #6b6862; /* mono labels */
+  --ink-faint: #8a8780; /* tertiary, disabled */
+
+  /* Lines */
+  --line: #c9c4b8; /* control and card borders */
+  --line-soft: #dad6cc; /* dividers, tab bar border, progress track */
+  --line-faint: #e6e2d8; /* rules inside cards */
+  --warm-line: #dcc9a4;
+  --rule-color: #eae5d8; /* journal ruling */
+  --margin-rule: #e3c6bc; /* the notebook margin line */
+
+  /* Signal */
+  --accent: #1f3fd4; /* ultramarine */
+  --accent-hover: #15309f;
+  --accent-tint: #dde2f8; /* extracted-word highlight */
+  --on-accent: #ffffff;
+  --amber: #8a5a12; /* corrections, struggle, needs review */
+  --strike: #a8633c; /* struck-out wrong form */
+  --good: #3f6b50;
+
+  /* Type */
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-ui: Archivo, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Shape */
+  --radius-control: 2px;
+  --radius-card: 3px;
+  --radius-pill: 22px;
+  --touch: 44px; /* minimum touch target */
+
+  /* Layout */
+  --gutter: 24px;
+  --sidebar-width: 248px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --paper: #111110;
+    --paper-raised: #1b1b19;
+    --paper-journal: #161614; /* provisional */
+    --paper-tint: #22221f; /* provisional */
+    --warm: #1d1a14; /* provisional */
+
+    --ink: #f7f5f0;
+    --ink-2: #c9c6be;
+    --ink-muted: #a8a59e;
+    --ink-label: #8a8780;
+    --ink-faint: #6b6862;
+
+    --line: #4a4844;
+    --line-soft: #2e2d2a;
+    --line-faint: #2e2d2a;
+    --warm-line: #4a3f2a; /* provisional */
+    --rule-color: #2a2926; /* provisional */
+    --margin-rule: #5a3f38; /* provisional */
+
+    --accent: #8da2f0;
+    --accent-hover: #b8c4f5;
+    --accent-tint: #26305a; /* provisional */
+    --on-accent: #111110;
+    --amber: #d9a55b; /* provisional: #8a5a12 is too dark on this ground */
+    --strike: #d48a62; /* provisional */
+    --good: #7fb08f; /* provisional */
+  }
+}
