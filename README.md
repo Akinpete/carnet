@@ -66,4 +66,4 @@ It's too early for code contributions: the foundations are still settling. A `CO
 
 ## Licence
 
-Carnet is released under the [GNU AGPL-3.0](LICENSE).
+Carnet is released under the [MIT License](LICENSE).
