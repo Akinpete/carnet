@@ -1,0 +1,4 @@
+# Local only, never pushed: agent manual, internal specs, personal Claude Code settings
+CLAUDE.md
+/workguide/
+.claude/settings.local.json
