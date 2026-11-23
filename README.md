@@ -21,20 +21,6 @@ Most language apps test recognition: pick the right translation out of four. Bei
 
 Carnet has no streaks, no leagues, no placement test and no screen monitoring. You decide what is worth keeping.
 
-## Status
-
-The first loop works: typed capture with automatic look-up, one review session a day, and recognition and recall cards on a spaced-repetition schedule. It's now being used daily for two weeks to find out whether it's worth building the rest.
-
-| | Milestone | State |
-| --- | --- | --- |
-| M0 | Foundations: repo, auth, PWA shell, CI | Done |
-| M1 | The loop: typed capture, SM-2 scheduling, recognition and recall cards | **In use**: 14-day trial |
-| M2 | Real capture: paste, screenshots, links, voice notes, share target | Not started |
-| M3 | Voice and production: audio, speech input, open-form grading, diagnosis | Not started |
-| M4 | The journal | Not started |
-| M5 | Grammar | Not started |
-| M6 | Public release: self-hosting guide, contributor path | Not started |
-
 Each milestone has a gate to meet before the next one starts. M1's gate is fourteen days of real personal use. Its point is to find out whether reviewing vocabulary you collected yourself is worth building everything else for.
 
 ## Planned stack
