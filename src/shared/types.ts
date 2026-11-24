@@ -28,6 +28,8 @@ export type DumpView = {
   word: { lemma: string; pos: string; translation: string; rung: number; usageNote: string | null } | null;
   /** How many words this dump put in the pool. */
   kept: number;
+  /** The page a link dump came from. */
+  source: string | null;
   /** Committed, but the word was already in the pool. */
   alreadyInPool: boolean;
   /** What extraction found: all of it, and how much is new to this learner. Null for a typed word. */

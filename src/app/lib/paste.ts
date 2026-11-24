@@ -39,10 +39,9 @@ export function usePasteAnywhere() {
         onError: (err: Error) => toast(err.message),
       };
 
-      // Links are a later part of M2; say so rather than fail.
-      if (pasted.kind === "url") return toast("Links arrive soon. For now, paste the article's text.");
       if (pasted.kind === "image") return addImage.mutate(pasted.file, done);
-      if (!add.isPending) add.mutate(pasted.text, done);
+      // A link goes in as it is: the server fetches the page.
+      if (!add.isPending) add.mutate(pasted.kind === "url" ? pasted.url : pasted.text, done);
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);

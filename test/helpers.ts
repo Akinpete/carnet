@@ -2,6 +2,7 @@
 // a fake, while keeping the real local D1 and KV from cloudflare.config.ts.
 import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import type { Ai, ChatRequest } from "../src/server/ai.ts";
+import type { Web } from "../src/server/ctx.ts";
 import { app } from "../src/server/app.ts";
 import { cloudflareCtx } from "../src/worker/index.ts";
 
@@ -15,9 +16,10 @@ export type Client = {
 };
 
 /** Sends one request and waits for its deferred work (enrichment) to finish. */
-export async function request(path: string, init: Init = {}, ai: Ai | null = null): Promise<Response> {
+export async function request(path: string, init: Init = {}, ai: Ai | null = null, web?: Web): Promise<Response> {
   const ec = createExecutionContext();
-  const ctx = { ...cloudflareCtx(env, ec), ai };
+  const real = cloudflareCtx(env, ec);
+  const ctx = { ...real, ai, web: web ?? real.web };
   const res = await app.fetch(
     new Request(`https://carnet.test/api${path}`, {
       method: init.method ?? (init.body === undefined && !init.form ? "GET" : "POST"),
@@ -36,14 +38,14 @@ export async function request(path: string, init: Init = {}, ai: Ai | null = nul
 }
 
 /** A fresh signed-up learner whose requests carry their session cookie. */
-export async function newLearner(ai: Ai | null, timezone = "UTC"): Promise<Client> {
+export async function newLearner(ai: Ai | null, timezone = "UTC", web?: Web): Promise<Client> {
   const email = `learner-${crypto.randomUUID()}@example.com`;
   const res = await request("/auth/signup", { body: { email, password: "un mot de passe", timezone } });
   if (res.status !== 201) throw new Error(`signup failed: ${res.status} ${await res.text()}`);
   const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
   return {
     cookie,
-    call: (path, init = {}) => request(path, { ...init, headers: { cookie, ...init.headers } }, ai),
+    call: (path, init = {}) => request(path, { ...init, headers: { cookie, ...init.headers } }, ai, web),
   };
 }
 
@@ -82,6 +84,18 @@ export function fakeAi(
         return req.schema.parse({ entries: found.map(({ kind: _, ...e }) => e) });
       }
       return req.schema.parse(words[req.user] ?? { kind: "unclear" });
+    },
+  };
+}
+
+/** A web that serves fixed articles by URL, and fails the rest the way `readArticle` would. */
+export function fakeWeb(pages: Record<string, Awaited<ReturnType<Web["readArticle"]>>>): Web & { reads: string[] } {
+  const reads: string[] = [];
+  return {
+    reads,
+    async readArticle(url) {
+      reads.push(url);
+      return pages[url] ?? { ok: false, reason: "not_found" };
     },
   };
 }

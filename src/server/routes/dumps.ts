@@ -14,6 +14,7 @@ import { idempotency } from "../middleware/idempotency.ts";
 import { rateLimitByUser } from "../middleware/rateLimit.ts";
 import { lookUpOne } from "../services/enrich.ts";
 import { MAX_CANDIDATES, MESSAGES, poolWrites, processDump } from "../services/extract.ts";
+import { isUrl } from "../../shared/links.ts";
 import { validate } from "../validate.ts";
 
 /** Biggest screenshot accepted. The app shrinks them to well under this before upload. */
@@ -110,6 +111,7 @@ async function toViews(ctx: Ctx, userId: string, rows: DumpRow[]): Promise<DumpV
         ? { lemma: one.lemma, pos: one.pos, translation: one.translation, rung: one.rung, usageNote: one.usageNote }
         : null,
       kept: mine.length,
+      source: r.kind === "url" ? r.sourceRef : null,
       alreadyInPool: r.status === "committed" && mine.length === 0,
       found: theirs.length > 0 ? { total: theirs.length, fresh: theirs.filter((f) => !f.inPool).length } : null,
     };
@@ -167,11 +169,15 @@ export const dumpRoutes = new Hono<AppEnv>()
   .post("/", rateLimitByUser("dumps", 50, DAY), validate("json", createBody), async (c) => {
     const { ctx, user } = c.var;
     const id = newId("dmp");
+    const { text } = c.req.valid("json");
+    // A lone link is a link dump: the page is fetched in the background.
+    const link = isUrl(text);
     await ctx.db.insert(dumps).values({
       id,
       userId: user.id,
-      kind: "text",
-      rawText: c.req.valid("json").text,
+      kind: link ? "url" : "text",
+      sourceRef: link ? text.trim() : null,
+      rawText: link ? null : text,
       status: "extracting",
       createdAt: Date.now(),
     });

@@ -1,15 +1,7 @@
 // What a paste holds. Pure, so it's testable without a browser.
+import { isUrl } from "../../shared/links.ts";
 
-/** A single link, nothing else. */
-export function isUrl(text: string): boolean {
-  if (/\s/.test(text)) return false;
-  try {
-    const url = new URL(text);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
+export { isUrl };
 
 export type Pasted = { kind: "image"; file: File } | { kind: "url"; url: string } | { kind: "text"; text: string } | null;
 

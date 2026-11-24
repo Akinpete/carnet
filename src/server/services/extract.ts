@@ -65,6 +65,11 @@ export const MESSAGES = {
   not_french: "That doesn't look like French.",
   unclear: "Couldn't make sense of that. Check the spelling?",
   unreadable: "Couldn't read any French in that image.",
+  not_a_page: "That link isn't a web page Carnet can read. Paste its text instead.",
+  unreachable: "Couldn't reach that page. Check the link, or paste its text instead.",
+  not_found: "That page doesn't exist any more.",
+  blocked: "That site doesn't let Carnet in. Paste the article's text instead.",
+  no_article: "Couldn't find an article on that page. Paste its text instead.",
   nothing: "Couldn't find any words worth learning in that.",
   no_ai: "Word lookup isn't set up on this server yet.",
   retry: "The lookup didn't finish. Try again in a moment.",
@@ -158,13 +163,21 @@ export async function processDump(ctx: Ctx, dumpId: string, image?: ImageInput):
   const { db, ai } = ctx;
   const dump = await db.select().from(dumps).where(eq(dumps.id, dumpId)).get();
   if (!dump || dump.status !== "extracting") return;
-  if (!image && !dump.rawText) return;
+  const isLink = dump.kind === "url";
+  if (!image && !isLink && !dump.rawText) return;
 
   try {
     let text = dump.rawText ?? "";
 
+    // 0. A link: fetch the page and keep the opening of its article.
+    if (isLink) {
+      const read = await ctx.web.readArticle(dump.sourceRef ?? "");
+      if (!read.ok) return fail(ctx, dumpId, MESSAGES[read.reason]);
+      text = read.article.text;
+    }
+
     // 1. One typed word or phrase: straight into the pool, no review (M1's path).
-    if (!image && looksLikeOneItem(text)) {
+    if (!image && !isLink && looksLikeOneItem(text)) {
       const found = await lookUpOne(ctx, text);
       if (found.ok) {
         const done = db.update(dumps).set({ status: "committed", error: null }).where(eq(dumps.id, dumpId));
@@ -218,7 +231,7 @@ export async function processDump(ctx: Ctx, dumpId: string, image?: ImageInput):
 
     // 4. Waiting for review, or straight in when there's only one word to keep.
     const writes: Write[] = candidates.map((c) => db.insert(dumpCandidates).values(c).onConflictDoNothing());
-    const read = image ? { rawText: text } : {};
+    const read = image || isLink ? { rawText: text } : {};
     if (candidates.length === 1 && candidates[0]) {
       writes.push(...(await poolWrites(ctx, dump, [candidates[0].wordId])));
       writes.push(db.update(dumps).set({ ...read, status: "committed", error: null }).where(eq(dumps.id, dumpId)));

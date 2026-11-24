@@ -208,16 +208,21 @@ function Source({ dump }: { dump: DumpDetail }) {
   const [showImage, setShowImage] = useState(false);
   const time = new Date(dump.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const isImage = dump.kind === "image";
+  const kind = isImage ? "screenshot" : dump.kind === "url" ? "link" : "text";
   return (
     <figure className={s.source}>
       <figcaption className={s.sourceHead}>
         <span className={s.label}>
-          Source · {isImage ? "screenshot" : "text"} {time}
+          Source · {kind} {time}
         </span>
         {isImage ? (
           <button type="button" className={s.linkButton} onClick={() => setShowImage((v) => !v)} aria-expanded={showImage}>
             {showImage ? "Hide screenshot" : "Show screenshot"}
           </button>
+        ) : dump.kind === "url" && dump.source ? (
+          <a className={s.linkButton} href={dump.source} target="_blank" rel="noopener noreferrer">
+            Open the page ↗
+          </a>
         ) : null}
       </figcaption>
       {/* Served through the API after an auth check; never a public URL. */}

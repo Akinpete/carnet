@@ -73,7 +73,7 @@ export default function Capture() {
             ref={field}
             rows={1}
             lang="fr"
-            placeholder="A word, a phrase, or paste some French"
+            placeholder="A word, a phrase, or paste a link"
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}
@@ -111,7 +111,7 @@ export default function Capture() {
           </div>
         </div>
         <p id="dump-note" className={error ? s.noteError : s.note} role={error ? "alert" : undefined}>
-          {error ?? "Type a word the way you met it, paste a sentence, or add a screenshot. Carnet picks out the words worth learning."}
+          {error ?? "Type a word the way you met it, or paste a sentence or a link, or add a screenshot. Carnet picks out the words worth learning."}
         </p>
       </form>
 
@@ -145,6 +145,24 @@ const words = (n: number) => `${n} ${n === 1 ? "word" : "words"}`;
 
 const KIND: Record<DumpView["kind"], string> = { text: "Text", image: "Screenshot", url: "Link", audio: "Voice note" };
 
+/** "lemonde.fr", for a link dump's label. */
+const host = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+};
+
+/** What an inbox row quotes: the French, or for a link its site and title (the first line). */
+function quote(dump: DumpView): string {
+  if (dump.kind === "url" && dump.source) {
+    const title = dump.text.split("\n")[0]?.replace(/\.$/, "");
+    return title ? `${host(dump.source)} — « ${title} »` : host(dump.source);
+  }
+  return dump.text ? `« ${dump.text} »` : KIND[dump.kind];
+}
+
 function InboxRow({ dump }: { dump: DumpView }) {
   const discard = useDiscardDump();
 
@@ -159,7 +177,7 @@ function InboxRow({ dump }: { dump: DumpView }) {
             <span className={s.labelAmber}>{dump.found ? `${words(dump.found.fresh)} new` : null}</span>
           </span>
           <span className={s.inboxQuote} lang="fr">
-            « {dump.text} »
+            {quote(dump)}
           </span>
           <span className={s.inboxAction}>Review and keep →</span>
         </Link>
@@ -187,7 +205,7 @@ function InboxRow({ dump }: { dump: DumpView }) {
       <li className={s.inboxRow}>
         <div>
           <p className={`${s.inboxWord} ${s.inboxClamp}`} lang="fr">
-            {dump.text ? `« ${dump.text} »` : KIND[dump.kind]}
+            {quote(dump)}
           </p>
           <p className={s.inboxMeta}>{words(dump.kept)} kept · in the pool</p>
         </div>
@@ -208,7 +226,7 @@ function InboxRow({ dump }: { dump: DumpView }) {
     <li className={s.inboxRow} aria-busy={dump.status === "extracting" || undefined}>
       <div>
         <p className={`${s.inboxWord} ${s.inboxPending} ${s.inboxClamp}`} lang="fr">
-          {dump.text || KIND[dump.kind]}
+          {dump.kind === "url" && dump.source ? host(dump.source) : dump.text || KIND[dump.kind]}
         </p>
         <p className={status.tone}>{status.text}</p>
       </div>

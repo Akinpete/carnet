@@ -38,6 +38,18 @@ export interface Storage {
   delete(key: string): Promise<void>;
 }
 
+/** A web page reduced to its article: the title and the opening text. */
+export type Article = { title: string | null; text: string };
+
+export type ReadResult =
+  | { ok: true; article: Article }
+  | { ok: false; reason: "not_a_page" | "unreachable" | "not_found" | "blocked" | "no_article" };
+
+/** Reading pages for link dumps. HTMLRewriter on Workers; the Node target brings its own. */
+export interface Web {
+  readArticle(url: string): Promise<ReadResult>;
+}
+
 /** Runs work after the response has been sent. */
 export type Defer = (task: () => Promise<unknown>) => void;
 
@@ -46,6 +58,7 @@ export type Ctx = {
   tx: Tx;
   kv: Kv;
   storage: Storage;
+  web: Web;
   /** `null` when no model is configured: features that need one degrade, never crash. */
   ai: Ai | null;
   defer: Defer;

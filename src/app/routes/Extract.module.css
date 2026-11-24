@@ -297,3 +297,9 @@
   display: flex;
   gap: 10px;
 }
+
+a.linkButton {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

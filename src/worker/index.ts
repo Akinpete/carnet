@@ -6,6 +6,7 @@ import { createGatewayAi, type Ai } from "../server/ai.ts";
 import { app } from "../server/app.ts";
 import type { Ctx, Kv, Storage, Tx } from "../server/ctx.ts";
 import { parseCost } from "../server/lib/password.ts";
+import { readArticle } from "./article.ts";
 
 function kvFrom(ns: KVNamespace): Kv {
   return {
@@ -49,6 +50,7 @@ export function cloudflareCtx(env: Env, ec: ExecutionContext): Ctx {
     tx,
     kv: kvFrom(env.SESSIONS),
     storage: storageFrom(env.UPLOADS),
+    web: { readArticle: (url) => readArticle(url) },
     ai: aiFrom(env),
     defer: (task) => ec.waitUntil(task().catch((err) => console.error("deferred task failed", err))),
     clientIp: (req) => req.headers.get("cf-connecting-ip"),
