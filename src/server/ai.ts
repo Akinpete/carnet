@@ -1,6 +1,7 @@
 // Every model call goes through the gateway: an OpenAI-compatible endpoint
 // (Cloudflare AI Gateway when hosted, anything compatible when self-hosted).
 // Model identity is configuration, never code. Plain fetch, so it's portable.
+import { Buffer } from "node:buffer";
 import type { ZodType } from "zod";
 
 /** Named routes: the gateway keys caching, limits and cost attribution off them. */
@@ -20,9 +21,20 @@ export type ChatRequest<T> = {
   maxTokens?: number;
 };
 
+export type TranscribeRequest = {
+  route: "transcribe";
+  audio: Uint8Array;
+  mediaType: string;
+  /** Expected language. Forcing French helps with a learner's accent. */
+  language?: string;
+  timeoutMs?: number;
+};
+
 export interface Ai {
   /** Returns the model's JSON reply, validated against `schema`. Throws `AiError`. */
   chat<T>(request: ChatRequest<T>): Promise<T>;
+  /** Speech to text. Throws `AiError`; `null` from the factory when no model is set. */
+  transcribe(request: TranscribeRequest): Promise<{ text: string }>;
 }
 
 export class AiError extends Error {
@@ -40,6 +52,12 @@ export type GatewayConfig = {
   model: string;
   /** Extra headers on every call, e.g. `cf-aig-gateway-id` for Cloudflare's AI Gateway. */
   headers?: Record<string, string>;
+  /**
+   * Speech to text. Workers AI's own shape (POST JSON with base64 audio to
+   * `url`, the model is in the path) or OpenAI's (`/audio/transcriptions`,
+   * multipart), for self-hosting.
+   */
+  transcribe?: { style: "workers-ai"; url: string } | { style: "openai"; model: string };
   fetch?: typeof fetch;
 };
 
@@ -55,49 +73,75 @@ function parseJson(content: string): unknown {
 
 export function createGatewayAi(config: GatewayConfig): Ai {
   const doFetch = config.fetch ?? fetch;
+  const base = config.baseUrl.replace(/\/$/, "");
+  const auth = { authorization: `Bearer ${config.apiKey}`, ...config.headers };
+
+  async function send(url: string, init: RequestInit, route: AiRoute, timeoutMs: number): Promise<Response> {
+    let res: Response;
+    try {
+      res = await doFetch(url, {
+        ...init,
+        headers: { ...auth, "cf-aig-metadata": JSON.stringify({ route }), ...(init.headers as Record<string, string>) },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      throw new AiError(`The model didn't answer in time (${String(err)}).`, true);
+    }
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => "")).slice(0, 300);
+      throw new AiError(`The model gateway returned ${res.status}: ${detail}`, res.status >= 500 || res.status === 429);
+    }
+    return res;
+  }
+
   return {
+    async transcribe({ route, audio, mediaType, language, timeoutMs = 15_000 }) {
+      const t = config.transcribe;
+      if (!t) throw new AiError("No transcription model is configured.", false);
+      let text: string | undefined;
+      if (t.style === "workers-ai") {
+        const body = JSON.stringify({ audio: Buffer.from(audio).toString("base64"), ...(language ? { language } : {}) });
+        const res = await send(t.url, { method: "POST", headers: { "content-type": "application/json" }, body }, route, timeoutMs);
+        text = ((await res.json()) as { result?: { text?: string } }).result?.text;
+      } else {
+        const form = new FormData();
+        form.append("file", new Blob([new Uint8Array(audio)], { type: mediaType }), "clip");
+        form.append("model", t.model);
+        if (language) form.append("language", language);
+        const res = await send(`${base}/audio/transcriptions`, { method: "POST", body: form }, route, timeoutMs);
+        text = ((await res.json()) as { text?: string }).text;
+      }
+      if (typeof text !== "string") throw new AiError("The transcription came back empty.", true);
+      return { text };
+    },
+
     async chat({ route, system, user, image, schema, cacheTtlSeconds, timeoutMs = 25_000, maxTokens = 1024 }) {
-      let res: Response;
-      try {
-        res = await doFetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${config.apiKey}`,
-            ...config.headers,
-            // Cloudflare AI Gateway headers; other providers ignore them.
-            "cf-aig-metadata": JSON.stringify({ route }),
-            ...(cacheTtlSeconds ? { "cf-aig-cache-ttl": String(cacheTtlSeconds) } : {}),
+      const body = JSON.stringify({
+        model: config.model,
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: image
+              ? [
+                  { type: "text", text: user },
+                  { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.base64}` } },
+                ]
+              : user,
           },
-          body: JSON.stringify({
-            model: config.model,
-            messages: [
-              { role: "system", content: system },
-              {
-                role: "user",
-                content: image
-                  ? [
-                      { type: "text", text: user },
-                      { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.base64}` } },
-                    ]
-                  : user,
-              },
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.2,
-            max_tokens: maxTokens,
-          }),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      } catch (err) {
-        throw new AiError(`The model didn't answer in time (${String(err)}).`, true);
-      }
-      if (!res.ok) {
-        const detail = (await res.text().catch(() => "")).slice(0, 300);
-        throw new AiError(`The model gateway returned ${res.status}: ${detail}`, res.status >= 500 || res.status === 429);
-      }
-      const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const content = body.choices?.[0]?.message?.content;
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_tokens: maxTokens,
+      });
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+        // Cloudflare AI Gateway caching; other providers ignore it.
+        ...(cacheTtlSeconds ? { "cf-aig-cache-ttl": String(cacheTtlSeconds) } : {}),
+      };
+      const res = await send(`${base}/chat/completions`, { method: "POST", headers, body }, route, timeoutMs);
+      const reply = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const content = reply.choices?.[0]?.message?.content;
       if (!content) throw new AiError("The model returned an empty reply.", true);
       const parsed = schema.safeParse(parseJson(content));
       if (!parsed.success) throw new AiError(`The model's reply didn't match the expected shape: ${parsed.error.message}`, true);

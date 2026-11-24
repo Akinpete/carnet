@@ -151,8 +151,10 @@ function cacheCandidates(text: string): string[] {
 }
 
 /** One typed word or phrase → its `words` row. Throws `AiError` when the model fails. */
-export async function lookUpOne(ctx: Ctx, text: string): Promise<LookUp> {
+export async function lookUpOne(ctx: Ctx, input: string): Promise<LookUp> {
   const { db, ai } = ctx;
+  // "Grève." as Whisper writes it, or a typed full stop: look up the word.
+  const text = input.trim().replace(/[.!?…]+$/, "").trim();
   // A word any learner has already looked up costs nothing.
   const cached = await db
     .select({ id: words.id })
@@ -166,7 +168,7 @@ export async function lookUpOne(ctx: Ctx, text: string): Promise<LookUp> {
   const reply = await ai.chat({
     route: "enrich",
     system: ENRICH_SYSTEM,
-    user: text.trim(),
+    user: text,
     schema: enrichReply,
     cacheTtlSeconds: CACHE_TTL,
     maxTokens: 400,

@@ -41,3 +41,10 @@ export const SettingsIcon = () => (
     />
   </svg>
 );
+
+export const MicIcon = () => (
+  <svg {...common}>
+    <rect x="5" y="1.5" width="5" height="8" rx="2.5" {...stroke} />
+    <path d="M2.8 7.2a4.7 4.7 0 0 0 9.4 0M7.5 11.9v1.8" {...stroke} strokeLinecap="round" />
+  </svg>
+);

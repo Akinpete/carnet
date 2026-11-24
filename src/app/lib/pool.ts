@@ -63,6 +63,21 @@ export function useAddImage() {
   });
 }
 
+/** A voice note: uploaded as recorded; the server transcribes it and keeps only the text. */
+export function useAddVoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (audio: Blob) => {
+      const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+      const file = new File([audio], `voice-note.${ext}`, { type: audio.type });
+      return (await unwrap(api.dumps.audio.$post({ form: { audio: file } }, key()))).dump;
+    },
+    onSuccess: (dump) => {
+      qc.setQueryData<DumpView[]>(dumpsKey, (current) => [dump, ...(current ?? [])]);
+    },
+  });
+}
+
 /** Keep the ticked words: the only write to the pool from a reviewed dump. */
 export function useCommitDump(id: string) {
   const qc = useQueryClient();

@@ -208,7 +208,7 @@ function Source({ dump }: { dump: DumpDetail }) {
   const [showImage, setShowImage] = useState(false);
   const time = new Date(dump.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
   const isImage = dump.kind === "image";
-  const kind = isImage ? "screenshot" : dump.kind === "url" ? "link" : "text";
+  const kind = isImage ? "screenshot" : dump.kind === "url" ? "link" : dump.kind === "audio" ? "voice note" : "text";
   return (
     <figure className={s.source}>
       <figcaption className={s.sourceHead}>

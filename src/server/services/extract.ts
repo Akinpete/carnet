@@ -65,6 +65,7 @@ export const MESSAGES = {
   not_french: "That doesn't look like French.",
   unclear: "Couldn't make sense of that. Check the spelling?",
   unreadable: "Couldn't read any French in that image.",
+  silent: "Couldn't hear any French in that recording. Try again a little closer.",
   not_a_page: "That link isn't a web page Carnet can read. Paste its text instead.",
   unreachable: "Couldn't reach that page. Check the link, or paste its text instead.",
   not_found: "That page doesn't exist any more.",
@@ -74,6 +75,25 @@ export const MESSAGES = {
   no_ai: "Word lookup isn't set up on this server yet.",
   retry: "The lookup didn't finish. Try again in a moment.",
 } as const;
+
+/**
+ * Whisper fills silence and music with stock phrases learned from subtitles.
+ * Those are not something the learner heard.
+ */
+const HALLUCINATIONS = [
+  /sous-titr/i,
+  /amara\.org/i,
+  /merci d'avoir regardé/i,
+  /abonnez-vous/i,
+  /^(merci|thank you|you|bye)[.!]*$/i,
+];
+
+export function cleanTranscript(text: string): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const kept = splitSentences(t).filter((s) => !HALLUCINATIONS.some((h) => h.test(s.trim())));
+  return kept.join(" ").trim();
+}
 
 /** Up to four words and no sentence punctuation: treat it as one word or phrase. */
 export function looksLikeOneItem(text: string): boolean {
@@ -155,16 +175,19 @@ const run = (ctx: Ctx, writes: Write[]) => ctx.tx(writes as [Write, ...Write[]])
 /** Per extraction attempt. Two attempts and the lookups stay inside Workers' 30 s for deferred work. */
 const EXTRACT_TIMEOUT_MS = 12_000;
 
-/** A screenshot handed straight to extraction, so it isn't read back from storage. */
-export type ImageInput = { bytes: Uint8Array; mediaType: string };
+/** An upload handed straight to extraction, from memory. */
+export type Upload = { bytes: Uint8Array; mediaType: string };
 
 /** Runs in `defer` after POST /dumps returns. Never throws: failures land on the dump. */
-export async function processDump(ctx: Ctx, dumpId: string, image?: ImageInput): Promise<void> {
+export async function processDump(ctx: Ctx, dumpId: string, upload?: Upload): Promise<void> {
   const { db, ai } = ctx;
   const dump = await db.select().from(dumps).where(eq(dumps.id, dumpId)).get();
   if (!dump || dump.status !== "extracting") return;
   const isLink = dump.kind === "url";
-  if (!image && !isLink && !dump.rawText) return;
+  const image = dump.kind === "image" ? upload : undefined;
+  const audio = dump.kind === "audio" ? upload : undefined;
+  if ((dump.kind === "image" || dump.kind === "audio") && !upload) return;
+  if (dump.kind === "text" && !dump.rawText) return;
 
   try {
     let text = dump.rawText ?? "";
@@ -176,7 +199,16 @@ export async function processDump(ctx: Ctx, dumpId: string, image?: ImageInput):
       text = read.article.text;
     }
 
-    // 1. One typed word or phrase: straight into the pool, no review (M1's path).
+    // 0. A voice note: transcribe it, then treat it as text. The recording isn't kept.
+    if (audio) {
+      if (!ai) return fail(ctx, dumpId, MESSAGES.no_ai);
+      const heard = await ai.transcribe({ route: "transcribe", audio: audio.bytes, mediaType: audio.mediaType, language: "fr" });
+      text = cleanTranscript(heard.text);
+      if (!text) return fail(ctx, dumpId, MESSAGES.silent);
+      await db.update(dumps).set({ rawText: text }).where(eq(dumps.id, dumpId));
+    }
+
+    // 1. One typed or spoken word or phrase: straight into the pool, no review (M1's path).
     if (!image && !isLink && looksLikeOneItem(text)) {
       const found = await lookUpOne(ctx, text);
       if (found.ok) {
@@ -231,7 +263,7 @@ export async function processDump(ctx: Ctx, dumpId: string, image?: ImageInput):
 
     // 4. Waiting for review, or straight in when there's only one word to keep.
     const writes: Write[] = candidates.map((c) => db.insert(dumpCandidates).values(c).onConflictDoNothing());
-    const read = image || isLink ? { rawText: text } : {};
+    const read = image || isLink || audio ? { rawText: text } : {};
     if (candidates.length === 1 && candidates[0]) {
       writes.push(...(await poolWrites(ctx, dump, [candidates[0].wordId])));
       writes.push(db.update(dumps).set({ ...read, status: "committed", error: null }).where(eq(dumps.id, dumpId)));

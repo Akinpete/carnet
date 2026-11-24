@@ -27,6 +27,7 @@ export default defineConfig({
       AI_API_KEY: bindings.secret(),
       AI_GATEWAY_ID: bindings.text("carnet"),
       MODEL_CHAT: bindings.text("@cf/mistralai/mistral-small-3.1-24b-instruct"),
+      MODEL_TRANSCRIBE: bindings.text("@cf/openai/whisper-large-v3-turbo"),
     },
   },
 });

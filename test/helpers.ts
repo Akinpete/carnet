@@ -63,6 +63,8 @@ const BATCH_LINE = /^(.+) \((noun|verb|adj|adv|pron|other)\)$/;
 export function fakeAi(
   words: Record<string, FakeReply>,
   texts: Record<string, FakeReply> = {},
+  /** Transcripts, keyed by the recording's bytes as text. */
+  speech: Record<string, string> = {},
 ): Ai & { calls: string[]; routes: string[] } {
   const calls: string[] = [];
   const routes: string[] = [];
@@ -70,6 +72,12 @@ export function fakeAi(
   return {
     calls,
     routes,
+    async transcribe(req) {
+      const key = new TextDecoder().decode(req.audio);
+      calls.push(`audio:${key}`);
+      routes.push(req.route);
+      return { text: speech[key] ?? "" };
+    },
     async chat<T>(req: ChatRequest<T>): Promise<T> {
       calls.push(req.user);
       routes.push(req.route);
@@ -99,6 +107,13 @@ export function fakeWeb(pages: Record<string, Awaited<ReturnType<Web["readArticl
     },
   };
 }
+
+/** A fake recording whose bytes are this text, for `fakeAi`'s `speech` table. */
+export const voiceNote = (content: string, type = "audio/mp4") => {
+  const form = new FormData();
+  form.append("audio", new File([content], "note.m4a", { type }));
+  return form;
+};
 
 /** A fake screenshot whose bytes are this text, for `fakeAi`'s `image:` keys. */
 export const screenshot = (content: string, type = "image/png") => {

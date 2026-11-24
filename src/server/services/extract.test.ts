@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findSentence, looksLikeOneItem, splitSentences } from "./extract.ts";
+import { cleanTranscript, findSentence, looksLikeOneItem, splitSentences } from "./extract.ts";
 
 describe("looksLikeOneItem", () => {
   it("takes words and short phrases as one item", () => {
@@ -44,5 +44,14 @@ describe("findSentence", () => {
     expect(found.startsWith("…")).toBe(true);
     expect(found.endsWith("…")).toBe(true);
     expect(found.length).toBeLessThan(long.length);
+  });
+});
+
+describe("cleanTranscript", () => {
+  it("drops Whisper's stock phrases and keeps what was said", () => {
+    expect(cleanTranscript("Sous-titres réalisés par la communauté d'Amara.org")).toBe("");
+    expect(cleanTranscript("  Merci.  ")).toBe("");
+    expect(cleanTranscript("Il y a une grève demain. Merci d'avoir regardé !")).toBe("Il y a une grève demain.");
+    expect(cleanTranscript("Merci pour le café, c'était gentil.")).toBe("Merci pour le café, c'était gentil.");
   });
 });

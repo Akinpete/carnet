@@ -2,10 +2,11 @@ import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import type { DumpView } from "../../shared/types.ts";
 import { Button } from "../components/Button.tsx";
-import { CaptureIcon, SettingsIcon } from "../components/icons.tsx";
+import { CaptureIcon, MicIcon, SettingsIcon } from "../components/icons.tsx";
 import { ApiError } from "../lib/api.ts";
 import { frenchDayLabel } from "../lib/dates.ts";
-import { useAddDump, useAddImage, useDiscardDump, useDumps } from "../lib/pool.ts";
+import { useAddDump, useAddImage, useAddVoice, useDiscardDump, useDumps } from "../lib/pool.ts";
+import { useRecorder } from "../lib/recorder.ts";
 import { useMe } from "../lib/session.ts";
 import s from "./screens.module.css";
 
@@ -15,6 +16,9 @@ export default function Capture() {
   const dumps = useDumps();
   const add = useAddDump();
   const addImage = useAddImage();
+  const addVoice = useAddVoice();
+  const recorder = useRecorder((audio) => addVoice.mutate(audio));
+  const recording = recorder.state === "recording";
   const [text, setText] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -48,7 +52,7 @@ export default function Capture() {
   };
 
   const waiting = dumps.data?.filter((d) => d.status === "awaiting_review").length ?? 0;
-  const failure = add.error ?? addImage.error;
+  const failure = add.error ?? addImage.error ?? addVoice.error ?? (recorder.error ? new ApiError(0, "mic", recorder.error) : null);
   const error = failure instanceof ApiError ? failure.message : failure ? "Couldn't add that. Try again." : null;
 
   return (
@@ -101,17 +105,35 @@ export default function Capture() {
                 if (file) addImage.mutate(file);
               }}
             />
-            <Button onClick={() => picker.current?.click()} disabled={addImage.isPending}>
+            <Button onClick={() => picker.current?.click()} disabled={addImage.isPending || recording}>
               <CaptureIcon />
               {addImage.isPending ? "Uploading…" : "Screenshot"}
             </Button>
+            {recorder.state !== "unsupported" ? (
+              <Button
+                variant={recording ? "ink" : "secondary"}
+                onClick={recording ? recorder.stop : () => void recorder.start()}
+                disabled={addVoice.isPending}
+                aria-pressed={recording}
+              >
+                <MicIcon />
+                {addVoice.isPending
+                  ? "Sending…"
+                  : recording
+                    ? `Stop · ${Math.floor(recorder.seconds / 60)}:${String(recorder.seconds % 60).padStart(2, "0")}`
+                    : "Voice"}
+              </Button>
+            ) : null}
             <Button type="submit" variant="primary" disabled={!text.trim() || add.isPending}>
               {add.isPending ? "Adding…" : "Add"}
             </Button>
           </div>
         </div>
         <p id="dump-note" className={error ? s.noteError : s.note} role={error ? "alert" : undefined}>
-          {error ?? "Type a word the way you met it, or paste a sentence or a link, or add a screenshot. Carnet picks out the words worth learning."}
+          {error ??
+            (recording
+              ? "Say what you heard. Tap Stop when you're done (a minute at most)."
+              : "Type a word the way you met it, paste a sentence or a link, add a screenshot, or say it. Carnet picks out the words worth learning.")}
         </p>
       </form>
 

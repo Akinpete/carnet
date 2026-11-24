@@ -38,6 +38,10 @@ function aiFrom(env: Env): Ai | null {
     apiKey: env.AI_API_KEY,
     model: env.MODEL_CHAT,
     headers: env.AI_GATEWAY_ID ? { "cf-aig-gateway-id": env.AI_GATEWAY_ID } : {},
+    // Workers AI has no OpenAI-style transcription route: its own `/run/<model>` sits beside `/v1`.
+    transcribe: env.MODEL_TRANSCRIBE
+      ? { style: "workers-ai", url: `${env.AI_GATEWAY_URL.replace(/\/v1\/?$/, "")}/run/${env.MODEL_TRANSCRIBE}` }
+      : undefined,
   });
 }
 

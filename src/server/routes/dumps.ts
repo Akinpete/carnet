@@ -47,6 +47,17 @@ const imageBody = z.object({
     }),
 });
 
+/** About a minute of speech, comfortably: the app stops recording at 60 s. */
+export const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+
+const audioBody = z.object({
+  audio: z
+    .instanceof(File, { error: "Attach a recording." })
+    .refine((f) => f.size > 0, { error: "That recording is empty." })
+    .refine((f) => f.size <= MAX_AUDIO_BYTES, { error: "That recording is too long. Keep voice notes under a minute." })
+    .refine((f) => /^(audio\/|video\/(mp4|webm))/.test(f.type), { error: "That isn't a recording Carnet can play." }),
+});
+
 const commitBody = z.object({
   wordIds: z
     .array(z.string().max(40))
@@ -225,6 +236,17 @@ export const dumpRoutes = new Hono<AppEnv>()
   .get("/:id", async (c) => {
     const { ctx, user } = c.var;
     return c.json({ dump: await detail(ctx, user.id, await ownDump(ctx, user.id, c.req.param("id"))) }, 200);
+  })
+  // A voice note: transcribed from memory and then forgotten. Only the text is kept.
+  .post("/audio", rateLimitByUser("dumps", 50, DAY), validate("form", audioBody), async (c) => {
+    const { ctx, user } = c.var;
+    const file = c.req.valid("form").audio;
+    const id = newId("dmp");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await ctx.db.insert(dumps).values({ id, userId: user.id, kind: "audio", status: "extracting", createdAt: Date.now() });
+    ctx.defer(() => processDump(ctx, id, { bytes, mediaType: file.type.split(";")[0] ?? file.type }));
+    const [dump] = await toViews(ctx, user.id, [await ownDump(ctx, user.id, id)]);
+    return c.json({ dump: dump as DumpView }, 202);
   })
   // The screenshot itself, to its owner only. Never public.
   .get("/:id/image", async (c) => {

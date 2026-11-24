@@ -86,7 +86,13 @@
   border-top: 1px solid var(--line-faint);
   padding: 10px;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.captureActions > button {
+  min-height: var(--touch);
+  padding: 0 14px;
 }
 
 .captureActions > * {
