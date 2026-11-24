@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { DumpView } from "../../shared/types.ts";
 import { Button } from "../components/Button.tsx";
@@ -226,9 +226,7 @@ function InboxRow({ dump }: { dump: DumpView }) {
     return (
       <li className={s.inboxRow}>
         <div>
-          <p className={`${s.inboxWord} ${s.inboxClamp}`} lang="fr">
-            {quote(dump)}
-          </p>
+          <Clamped className={s.inboxWord}>{quote(dump)}</Clamped>
           <p className={s.inboxMeta}>{words(dump.kept)} kept · in the pool</p>
         </div>
       </li>
@@ -247,9 +245,9 @@ function InboxRow({ dump }: { dump: DumpView }) {
   return (
     <li className={s.inboxRow} aria-busy={dump.status === "extracting" || undefined}>
       <div>
-        <p className={`${s.inboxWord} ${s.inboxPending} ${s.inboxClamp}`} lang="fr">
+        <Clamped className={`${s.inboxWord} ${s.inboxPending}`}>
           {dump.kind === "url" && dump.source ? host(dump.source) : dump.text || KIND[dump.kind]}
-        </p>
+        </Clamped>
         <p className={status.tone}>{status.text}</p>
       </div>
       {failed ? (
@@ -258,5 +256,38 @@ function InboxRow({ dump }: { dump: DumpView }) {
         </Button>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Two lines of the French, with "See more" when there's more than fits.
+ * Measured, not guessed from length: the fold depends on the screen's width.
+ */
+function Clamped({ className, children }: { className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [cut, setCut] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || open) return;
+    const measure = () => setCut(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [open, children]);
+
+  return (
+    <>
+      <p ref={ref} className={[className, open ? "" : s.inboxClamp].filter(Boolean).join(" ")} lang="fr">
+        {children}
+      </p>
+      {cut || open ? (
+        <button type="button" className={s.seeMore} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          {open ? "See less" : "See more"}
+        </button>
+      ) : null}
+    </>
   );
 }
