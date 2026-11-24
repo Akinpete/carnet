@@ -62,6 +62,16 @@ const router = createBrowserRouter([
 
 const queryClient = new QueryClient();
 
+// A new version's service worker takes over in the background (autoUpdate).
+// Reload onto it straight away, so nobody keeps running last week's app,
+// except mid-session, where the next navigation picks it up instead.
+// Only on updates: on a first visit there was no worker to replace.
+if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!location.pathname.startsWith("/review/session")) location.reload();
+  });
+}
+
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html is missing #root");
 

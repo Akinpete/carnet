@@ -18,6 +18,9 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,woff2,png,svg,webmanifest}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
+        // Take over open pages as soon as a new version installs; main.tsx reloads onto it.
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
