@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { reviews, sessionsGenerated, SLOTS, userWords, users, words } from "../../db/schema.sqlite.ts";
+import { reviews, SESSION_SLOTS, sessionsGenerated, SLOTS, userWords, users, words } from "../../db/schema.sqlite.ts";
 import { gradeLocally, isLocal, MAX_RUNG, type LocalAnswer } from "../../shared/cards.ts";
-import type { AnswerResult, SessionView, TodayView } from "../../shared/types.ts";
+import type { AnswerResult, SessionSlot, SessionView, TodayView } from "../../shared/types.ts";
 import type { Ctx } from "../ctx.ts";
 import type { AppEnv } from "../env.ts";
 import { AppError } from "../errors.ts";
@@ -14,23 +14,49 @@ import { idempotency } from "../middleware/idempotency.ts";
 import { AiError } from "../ai.ts";
 import { gradeComprehension, type Judgement } from "../services/grade.ts";
 import { schedule, type Grade, type Rung } from "../services/scheduler.ts";
-import { buildCards, ensureExamples, selectSessionWords } from "../services/sessions.ts";
+import {
+  buildCards,
+  countPracticeWords,
+  ensureExamples,
+  selectPracticeWords,
+  selectSessionWords,
+} from "../services/sessions.ts";
 import { validate } from "../validate.ts";
 
-/** M1 offers one session a day, stored in the morning slot. Three a day is M3. */
-const DAILY_SLOT = "morning" satisfies (typeof SLOTS)[number];
+type Slot = (typeof SESSION_SLOTS)[number];
+type SessionRow = typeof sessionsGenerated.$inferSelect;
+
+const isSlot = (s: string): s is Slot => (SESSION_SLOTS as readonly string[]).includes(s);
 
 async function userToday(ctx: Ctx, userId: string): Promise<string> {
   const user = await ctx.db.select({ timezone: users.timezone }).from(users).where(eq(users.id, userId)).get();
   return todayIn(user?.timezone ?? "UTC");
 }
 
-function findSession(ctx: Ctx, userId: string, forDate: string) {
+function findSession(ctx: Ctx, userId: string, forDate: string, slot: Slot) {
   return ctx.db
     .select()
     .from(sessionsGenerated)
-    .where(and(eq(sessionsGenerated.userId, userId), eq(sessionsGenerated.forDate, forDate), eq(sessionsGenerated.slot, DAILY_SLOT)))
+    .where(and(eq(sessionsGenerated.userId, userId), eq(sessionsGenerated.forDate, forDate), eq(sessionsGenerated.slot, slot)))
     .get();
+}
+
+/** Today's real sessions (not practice), in slot order, with how far each got. */
+async function todaysSessions(ctx: Ctx, userId: string, forDate: string) {
+  const rows = await ctx.db
+    .select()
+    .from(sessionsGenerated)
+    .where(and(eq(sessionsGenerated.userId, userId), eq(sessionsGenerated.forDate, forDate)))
+    .all();
+  const real = rows
+    .filter((r): r is SessionRow & { slot: SessionSlot } => r.slot !== "practice")
+    .sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
+  return Promise.all(
+    real.map(async (r) => {
+      const answered = (await answeredIn(ctx, r.id)).length;
+      return { row: r, answered, done: r.completedAt !== null || answered >= r.cards.length };
+    }),
+  );
 }
 
 async function answeredIn(ctx: Ctx, sessionId: string) {
@@ -69,38 +95,69 @@ export const sessionRoutes = new Hono<AppEnv>()
   .get("/today", async (c) => {
     const { ctx, user } = c.var;
     const today = await userToday(ctx, user.id);
-    const session = await findSession(ctx, user.id, today);
+    const sessions = await todaysSessions(ctx, user.id, today);
+    const done = sessions.filter((x) => x.done).length;
+    const reviewedToday = sessions.reduce((n, x) => n + x.answered, 0);
+    const practice = await countPracticeWords(ctx.db, user.id, today);
+    const base = { forDate: today, done, reviewedToday, practice };
+
+    const open = sessions.find((x) => !x.done);
     let view: TodayView;
-    if (session) {
-      const answered = (await answeredIn(ctx, session.id)).length;
-      const done = session.completedAt !== null || answered >= session.cards.length;
-      view = { forDate: today, total: session.cards.length, answered, state: done ? "completed" : "in_progress" };
+    if (open) {
+      view = { ...base, slot: open.row.slot, total: open.row.cards.length, answered: open.answered, state: "in_progress" };
     } else {
-      const total = (await selectSessionWords(ctx.db, user.id, today)).length;
-      view = { forDate: today, total, answered: 0, state: total === 0 ? "nothing_due" : "ready" };
+      // The next slot opens only with words that are really due: new ones, or ones the cap left out.
+      const slot = SLOTS[sessions.length] ?? null;
+      const total = slot ? (await selectSessionWords(ctx.db, user.id, today)).length : 0;
+      const state = total > 0 ? "ready" : sessions.length > 0 ? "completed" : "nothing_due";
+      view = { ...base, slot, total, answered: 0, state };
     }
     return c.json(view, 200);
   })
   .post("/:slot/start", async (c) => {
     const { ctx, user } = c.var;
-    if (c.req.param("slot") !== DAILY_SLOT) {
-      throw new AppError(400, "invalid_slot", "There's one session a day for now.");
-    }
+    const slot = c.req.param("slot");
+    if (!isSlot(slot)) throw new AppError(400, "invalid_slot", "There's no such session.");
     const today = await userToday(ctx, user.id);
-    // Idempotent per slot per day: a started session is reopened, never regenerated.
-    let session = await findSession(ctx, user.id, today);
-    if (!session) {
-      const cards = buildCards(await ensureExamples(ctx, await selectSessionWords(ctx.db, user.id, today)));
-      if (cards.length === 0) throw new AppError(409, "nothing_due", "Nothing is due today. Add some words and come back tomorrow.");
-      await ctx.db
-        .insert(sessionsGenerated)
-        .values({ id: newId("ses"), userId: user.id, slot: DAILY_SLOT, forDate: today, cards, startedAt: Date.now() })
-        .onConflictDoNothing();
-      session = await findSession(ctx, user.id, today);
-      if (!session) throw new AppError(500, "internal", "The session wasn't saved.");
+    let session: SessionRow | undefined;
+
+    if (slot === "practice") {
+      // Each practice round is fresh: the day's practice row is replaced, its reviews stay (append-only).
+      const cards = buildCards(await ensureExamples(ctx, await selectPracticeWords(ctx.db, user.id, today)));
+      if (cards.length === 0) {
+        throw new AppError(409, "nothing_to_practise", "Nothing to practise yet. Words you've reviewed come back here until they're due.");
+      }
+      const id = newId("ses");
+      await ctx.tx([
+        ctx.db
+          .delete(sessionsGenerated)
+          .where(and(eq(sessionsGenerated.userId, user.id), eq(sessionsGenerated.forDate, today), eq(sessionsGenerated.slot, "practice"))),
+        ctx.db.insert(sessionsGenerated).values({ id, userId: user.id, slot, forDate: today, cards, startedAt: Date.now() }),
+      ]);
+      session = await findSession(ctx, user.id, today, slot);
+    } else {
+      // Idempotent per slot per day: a started session is reopened, never regenerated.
+      session = await findSession(ctx, user.id, today, slot);
+      if (!session) {
+        const sessions = await todaysSessions(ctx, user.id, today);
+        if (SLOTS.indexOf(slot) !== sessions.length || sessions.some((x) => !x.done)) {
+          throw new AppError(409, "session_out_of_order", "Finish the session you've started first.");
+        }
+        const cards = buildCards(await ensureExamples(ctx, await selectSessionWords(ctx.db, user.id, today)));
+        if (cards.length === 0) {
+          throw new AppError(409, "nothing_due", "Nothing is due right now. Add some words, or practise the ones you have.");
+        }
+        await ctx.db
+          .insert(sessionsGenerated)
+          .values({ id: newId("ses"), userId: user.id, slot, forDate: today, cards, startedAt: Date.now() })
+          .onConflictDoNothing();
+        session = await findSession(ctx, user.id, today, slot);
+      }
     }
+    if (!session) throw new AppError(500, "internal", "The session wasn't saved.");
     const view: SessionView = {
       id: session.id,
+      slot: session.slot,
       forDate: session.forDate,
       cards: session.cards,
       answered: await answeredIn(ctx, session.id),
@@ -178,6 +235,8 @@ export const sessionRoutes = new Hono<AppEnv>()
     );
     const today = await userToday(ctx, user.id);
     const dueOn = addDays(today, next.intervalDays);
+    // Practice is graded and logged, but the word's schedule stays exactly where it was.
+    const practice = session.slot === "practice";
     const answerText =
       "text" in answer ? answer.text : "choice" in answer && card.type === "recognition" ? (card.choices[answer.choice] ?? null) : null;
 
@@ -194,17 +253,24 @@ export const sessionRoutes = new Hono<AppEnv>()
         latencyMs: body.latencyMs ?? null,
         createdAt: Date.now(),
       }),
-      ctx.db
-        .update(userWords)
-        .set({ ...next, dueOn })
-        .where(and(eq(userWords.userId, user.id), eq(userWords.wordId, body.wordId))),
+      ...(practice
+        ? []
+        : [
+            ctx.db
+              .update(userWords)
+              .set({ ...next, dueOn })
+              .where(and(eq(userWords.userId, user.id), eq(userWords.wordId, body.wordId))),
+          ]),
     ]);
 
     const view: AnswerResult = {
       correct,
       expected,
       accentSlip,
-      next: { rung: next.rung, intervalDays: next.intervalDays, dueOn },
+      next: practice
+        ? { rung: state.rung, intervalDays: state.intervalDays, dueOn: state.dueOn }
+        : { rung: next.rung, intervalDays: next.intervalDays, dueOn },
+      ...(practice ? { practice: true as const } : {}),
       ...(judged ? { judged: { close: judged.close, errorKind: judged.errorKind, explanation: judged.explanation } } : {}),
     };
     return c.json(view, 200);

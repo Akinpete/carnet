@@ -126,13 +126,15 @@ export const reviews = sqliteTable(
 );
 
 export const SLOTS = ["morning", "midday", "evening"] as const;
+/** The three daily sessions, plus practice: cards that never touch the schedule (M2). */
+export const SESSION_SLOTS = [...SLOTS, "practice"] as const;
 
 export const sessionsGenerated = sqliteTable(
   "sessions_generated",
   {
     id: text("id").primaryKey(),
     userId: text("user_id").notNull(),
-    slot: text("slot", { enum: SLOTS }).notNull(),
+    slot: text("slot", { enum: SESSION_SLOTS }).notNull(),
     forDate: text("for_date").notNull(), // YYYY-MM-DD
     cards: json<Card[]>("cards").notNull(),
     startedAt: timestampMs("started_at"),

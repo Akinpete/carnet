@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AnswerResult } from "../../shared/types.ts";
+import type { AnswerResult, SessionSlot } from "../../shared/types.ts";
 import { api, ApiError, unwrap } from "./api.ts";
 
 export const todayKey = ["session", "today"] as const;
@@ -13,11 +13,17 @@ export function useToday() {
   });
 }
 
-/** Gets (or generates, once per day) today's cards. */
+export type PlaySlot = SessionSlot | "practice";
+
+export const isPlaySlot = (s: string | null): s is PlaySlot =>
+  s === "morning" || s === "midday" || s === "evening" || s === "practice";
+
+/** Gets (or generates, once per slot per day) a session's cards. Practice is fresh every time. */
 export function useStartSession() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () =>
-      (await unwrap(api.sessions[":slot"].start.$post({ param: { slot: "morning" } }))).session,
+    mutationFn: async (slot: PlaySlot) => (await unwrap(api.sessions[":slot"].start.$post({ param: { slot } }))).session,
+    onSuccess: () => qc.invalidateQueries({ queryKey: todayKey }),
   });
 }
 

@@ -55,17 +55,33 @@ export type CandidateView = {
 /** GET /dumps/:id */
 export type DumpDetail = DumpView & { candidates: CandidateView[] };
 
+export type SessionSlot = "morning" | "midday" | "evening";
+
 /** GET /sessions/today */
 export type TodayView = {
   forDate: string;
-  /** Cards today's session holds (or would hold, if not started yet). */
+  /** The session the counts refer to: the open one, or the next one to start. Null once all three are used. */
+  slot: SessionSlot | null;
+  /** Cards that session holds (or would hold, if not started yet). */
   total: number;
   answered: number;
+  /**
+   * nothing_due: no session today and nothing to start. ready: one can start
+   * (the first, or another one once new words are due). in_progress: one is
+   * open. completed: today's are done and nothing else is due.
+   */
   state: "nothing_due" | "ready" | "in_progress" | "completed";
+  /** Sessions finished today. */
+  done: number;
+  /** Cards answered today, across today's sessions. */
+  reviewedToday: number;
+  /** Words not due yet that practice can use. */
+  practice: number;
 };
 
 export type SessionView = {
   id: string;
+  slot: SessionSlot | "practice";
   forDate: string;
   cards: Card[];
   /** Cards already answered, so a reopened session resumes where it stopped. */
@@ -79,6 +95,8 @@ export type AnswerResult = {
   expected: string;
   accentSlip: boolean;
   next: { rung: number; intervalDays: number; dueOn: string };
+  /** Practice: graded, but the word's schedule didn't move. */
+  practice?: true;
   /** Model-graded cards (rung 3 and up) only. */
   judged?: {
     /** Right idea, not quite there: passes, but the word stays on its rung. */

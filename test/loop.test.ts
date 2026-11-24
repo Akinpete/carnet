@@ -127,7 +127,7 @@ describe("one session a day", () => {
       .all();
     expect(rows.results).toEqual([{ grade: 3, rung: 1, answer_text: "the strike", latency_ms: 2100 }]);
 
-    expect(await json<TodayView>(await me.call("/sessions/today"))).toMatchObject({ state: "completed", answered: 1 });
+    expect(await json<TodayView>(await me.call("/sessions/today"))).toMatchObject({ state: "completed", reviewedToday: 1 });
     const done = await me.call(`/sessions/${session.id}/complete`, { body: {} });
     expect(await done.json()).toEqual({ total: 1, answered: 1, correct: 1 });
   });
@@ -137,7 +137,8 @@ describe("one session a day", () => {
     const a = await json<{ session: SessionView }>(await me.call("/sessions/morning/start", { body: {} }));
     const b = await json<{ session: SessionView }>(await me.call("/sessions/morning/start", { body: {} }));
     expect(b.session.id).toBe(a.session.id);
-    expect((await me.call("/sessions/evening/start", { body: {} })).status).toBe(400);
+    // Later slots open in order, once this one is done (test/sessions.test.ts).
+    expect((await me.call("/sessions/evening/start", { body: {} })).status).toBe(409);
   });
 
   it("grades recall by text: articles and case don't matter, a missing accent passes with a note", async () => {

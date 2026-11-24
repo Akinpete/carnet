@@ -4,7 +4,7 @@
 // is retried and never stops the session. Rung 3 is judged by the model and
 // is never optimistic: it shows "Checking…" until the grade arrives.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { gradeLocally, isLocal, stripAccents, type Card, type LocalAnswer, type LocalResult } from "../../shared/cards.ts";
 import type { AnswerResult, SessionView } from "../../shared/types.ts";
 import { Button } from "../components/Button.tsx";
@@ -12,7 +12,7 @@ import { Sheet } from "../components/Sheet.tsx";
 import { useToast } from "../components/Toast.tsx";
 import { ApiError } from "../lib/api.ts";
 import { posLabel } from "../lib/labels.ts";
-import { useAnswer, useCompleteSession, useStartSession } from "../lib/review.ts";
+import { isPlaySlot, useAnswer, useCompleteSession, useStartSession } from "../lib/review.ts";
 import s from "./Player.module.css";
 
 const PASS_ADVANCE_MS = 600;
@@ -21,6 +21,10 @@ type Shown = LocalResult & { chosen: number | null; judged?: AnswerResult["judge
 
 export default function Player() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const requested = params.get("slot");
+  const slot = isPlaySlot(requested) ? requested : "morning";
+  const practice = slot === "practice";
   const toast = useToast();
   const start = useStartSession();
   const answer = useAnswer();
@@ -51,7 +55,7 @@ export default function Player() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    start.mutate(undefined, {
+    start.mutate(slot, {
       onSuccess: (s) => {
         setSession(s);
         const done = new Set(s.answered.map((a) => a.wordId));
@@ -62,7 +66,7 @@ export default function Player() {
         shownAt.current = Date.now();
       },
     });
-  }, [start, finish]);
+  }, [start, finish, slot]);
 
   useEffect(() => () => {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
@@ -157,13 +161,17 @@ export default function Player() {
     return (
       <div className={s.player}>
         <div className={s.centre}>
-          <p className={s.mono}>Done for today</p>
+          <p className={s.mono}>{practice ? "Practice done" : "Session done"}</p>
           <h1 className={s.doneTitle}>
             {finished.correct} of {finished.total} right.
           </h1>
-          <p className={s.doneLine}>Your next session opens tomorrow. Words you add before then will be in it.</p>
-          <Button variant="ink" block onClick={() => navigate("/")}>
-            Back to Capture
+          <p className={s.doneLine}>
+            {practice
+              ? "Practice doesn't change when words come back. Your sessions still decide that."
+              : "Words you add later today can go into another session. The rest come back when they're due."}
+          </p>
+          <Button variant="ink" block onClick={() => navigate("/review")}>
+            Back to Review
           </Button>
         </div>
       </div>
@@ -180,7 +188,7 @@ export default function Player() {
             Close
           </button>
           <span className={s.mono}>
-            Today · {index + 1} of {session.cards.length}
+            {practice ? "Practice" : "Today"} · {index + 1} of {session.cards.length}
           </span>
         </div>
         <div
@@ -214,7 +222,9 @@ export default function Player() {
       </main>
 
       <Sheet open={confirmClose} onClose={() => setConfirmClose(false)} title="Leave the session?">
-        <p className={s.doneLine}>Your answers so far are saved. You can finish it later today.</p>
+        <p className={s.doneLine}>
+          {practice ? "Practice doesn't change your schedule, so nothing is lost." : "Your answers so far are saved. You can finish it later today."}
+        </p>
         <Button variant="ink" block onClick={() => navigate("/review")}>
           Leave
         </Button>

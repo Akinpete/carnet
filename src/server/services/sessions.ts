@@ -2,7 +2,7 @@
 // (rungs 1–3); the model-generated, balanced session arrives with M3. Rung 3
 // shows the sentence the learner met the word in, or, failing that, a short
 // example generated once and kept on the shared word.
-import { and, asc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { dumpCandidates, userWords, words } from "../../db/schema.sqlite.ts";
@@ -65,6 +65,35 @@ export async function selectSessionWords(db: Db, userId: string, today: string) 
     .limit(MAX_NEW);
 
   return [...leeches, ...due, ...fresh];
+}
+
+export const MAX_PRACTICE = 10;
+
+/**
+ * Practice draws from words that aren't due, weakest first, so it never
+ * steals a real session's cards (seeing a due word just before its review
+ * would make that review easy and its grade worthless). A little shuffle
+ * among the weakest keeps rounds from repeating.
+ */
+export async function selectPracticeWords(db: Db, userId: string, today: string, random: () => number = Math.random) {
+  const rows = await db
+    .select(columns)
+    .from(userWords)
+    .innerJoin(words, eq(words.id, userWords.wordId))
+    .leftJoin(dumpCandidates, and(eq(dumpCandidates.dumpId, userWords.sourceDumpId), eq(dumpCandidates.wordId, userWords.wordId)))
+    .where(and(eq(userWords.userId, userId), gt(userWords.dueOn, today)))
+    .orderBy(desc(userWords.isLeech), desc(userWords.lapses), asc(userWords.ease), asc(userWords.dueOn))
+    .limit(MAX_PRACTICE * 2);
+  return shuffle(rows, random).slice(0, MAX_PRACTICE);
+}
+
+export async function countPracticeWords(db: Db, userId: string, today: string): Promise<number> {
+  const rows = await db
+    .select({ id: userWords.wordId })
+    .from(userWords)
+    .where(and(eq(userWords.userId, userId), gt(userWords.dueOn, today)))
+    .limit(MAX_PRACTICE);
+  return rows.length;
 }
 
 function shuffle<T>(items: T[], random: () => number): T[] {
