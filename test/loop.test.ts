@@ -51,20 +51,14 @@ describe("capture", () => {
     expect(again.alreadyInPool).toBe(true);
   });
 
-  it("fails sentences, non-French and unconfigured lookups with a message the learner can act on", async () => {
-    const ai = fakeAi({
-      "Le patron m'a retrouvé une table": { kind: "sentence" },
-      hello: { kind: "not_french" },
-    });
+  it("fails non-French, unclear and unconfigured lookups with a message the learner can act on", async () => {
+    const ai = fakeAi({ hello: { kind: "not_french" } });
     const me = await newLearner(ai);
     const outcome = async (text: string, client = me) => {
       const { dump } = await json<{ dump: DumpView }>(await client.call("/dumps", { body: { text } }));
       return json<{ dump: DumpView }>(await client.call(`/dumps/${dump.id}`)).then((r) => r.dump);
     };
-    expect(await outcome("Le patron m'a retrouvé une table")).toMatchObject({
-      status: "failed",
-      error: "Type one word or phrase. Pasting longer text arrives soon.",
-    });
+    expect(await outcome("xqzt")).toMatchObject({ status: "failed", error: "Couldn't make sense of that. Check the spelling?" });
     expect(await outcome("hello")).toMatchObject({ status: "failed", error: "That doesn't look like French." });
 
     const offline = await newLearner(null);
@@ -79,7 +73,9 @@ describe("capture", () => {
     await me.call("/dumps", { body: { text: "grève" } });
     await me.call("/dumps", { body: { text: "retrouver" } });
     const { dumps } = await json<{ dumps: DumpView[] }>(await me.call("/dumps"));
-    expect(dumps.map((d) => d.word?.lemma)).toEqual(["retrouver", "la grève"]);
+    expect(dumps.map((d) => d.word?.lemma).sort()).toEqual(["la grève", "retrouver"]);
+    // Newest first. The runtime's clock only moves on I/O, so two quick dumps can tie.
+    expect(dumps[0]?.createdAt).toBeGreaterThanOrEqual(dumps[1]?.createdAt ?? Infinity);
   });
 });
 

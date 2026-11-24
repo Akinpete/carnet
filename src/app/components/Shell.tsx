@@ -1,11 +1,13 @@
 import { NavLink, Outlet } from "react-router";
+import { usePasteAnywhere } from "../lib/paste.ts";
+import { useDumps } from "../lib/pool.ts";
 import { useToday } from "../lib/review.ts";
 import { CaptureIcon, GrammarIcon, JournalIcon, ReviewIcon, SettingsIcon } from "./icons.tsx";
 import s from "./Shell.module.css";
 
-// Badges are the only prompt the product gives. Review shows cards left
-// today; the inbox count, journal dot and stage arrive with M2, M4 and M5.
-// Never a streak.
+// Badges are the only prompt the product gives. Capture shows dumps waiting
+// for review, Review shows cards left today; the journal dot and the stage
+// arrive with M4 and M5. Never a streak.
 const tabs = [
   { to: "/", label: "Capture", Icon: CaptureIcon },
   { to: "/review", label: "Review", Icon: ReviewIcon },
@@ -17,7 +19,13 @@ const tabs = [
 export function Shell() {
   const today = useToday().data;
   const left = today && (today.state === "ready" || today.state === "in_progress") ? today.total - today.answered : 0;
-  const badges: Record<string, string> = left > 0 ? { "/review": `${left} due` } : {};
+  const toReview = useDumps().data?.filter((d) => d.status === "awaiting_review").length ?? 0;
+  const badges: Record<string, { text: string; amber?: boolean }> = {};
+  if (toReview > 0) badges["/"] = { text: String(toReview), amber: true };
+  if (left > 0) badges["/review"] = { text: `${left} due` };
+
+  // Ctrl+V on any tab screen becomes a dump. Not in the session or review screens.
+  usePasteAnywhere();
 
   return (
     <div className={s.shell}>
@@ -28,7 +36,9 @@ export function Shell() {
             <NavLink key={to} to={to} end className={s.sideLink}>
               <Icon />
               {label}
-              {badges[to] ? <span className={s.sideBadge}>{badges[to]}</span> : null}
+              {badges[to] ? (
+                <span className={`${s.sideBadge} ${badges[to].amber ? s.amber : ""}`}>{badges[to].text}</span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
@@ -47,7 +57,9 @@ export function Shell() {
         {tabs.map(({ to, label }) => (
           <NavLink key={to} to={to} end className={s.tab}>
             <span>{label}</span>
-            {badges[to] ? <span className={s.badge}>{badges[to]}</span> : null}
+            {badges[to] ? (
+              <span className={`${s.badge} ${badges[to].amber ? s.amber : ""}`}>{badges[to].text}</span>
+            ) : null}
           </NavLink>
         ))}
       </nav>

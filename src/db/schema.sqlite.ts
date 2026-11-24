@@ -34,6 +34,27 @@ export const dumps = sqliteTable(
 
 export const POS = ["noun", "verb", "adj", "adv", "pron", "other"] as const;
 
+// What extraction found in a dump, waiting for the learner to keep or drop it.
+// Committing copies the kept ones into `user_words`; the rows stay, because
+// they hold the sentence each word was met in (rung 3 needs it).
+export const dumpCandidates = sqliteTable(
+  "dump_candidates",
+  {
+    dumpId: text("dump_id")
+      .notNull()
+      .references(() => dumps.id),
+    wordId: text("word_id")
+      .notNull()
+      .references(() => words.id),
+    /** As it appeared in the source, for highlighting ("retrouvé"). */
+    form: text("form"),
+    /** The sentence it was met in, or null when it wasn't found. */
+    sentence: text("sentence"),
+    position: integer("position").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.dumpId, t.wordId] })],
+);
+
 // Global. One row per French lemma, shared by every user. Writes are
 // idempotent on (lemma, pos).
 export const words = sqliteTable(

@@ -14,6 +14,10 @@ export type ChatRequest<T> = {
   /** Ask the gateway to cache identical requests (enrichment is deterministic per word). */
   cacheTtlSeconds?: number;
   timeoutMs?: number;
+  /** An image sent with the user text (screenshots). Base64, without the data: prefix. */
+  image?: { mediaType: string; base64: string };
+  /** Cap on the reply's length. Set it: Workers AI otherwise stops at 256 tokens. */
+  maxTokens?: number;
 };
 
 export interface Ai {
@@ -52,7 +56,7 @@ function parseJson(content: string): unknown {
 export function createGatewayAi(config: GatewayConfig): Ai {
   const doFetch = config.fetch ?? fetch;
   return {
-    async chat({ route, system, user, schema, cacheTtlSeconds, timeoutMs = 25_000 }) {
+    async chat({ route, system, user, image, schema, cacheTtlSeconds, timeoutMs = 25_000, maxTokens = 1024 }) {
       let res: Response;
       try {
         res = await doFetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
@@ -69,10 +73,19 @@ export function createGatewayAi(config: GatewayConfig): Ai {
             model: config.model,
             messages: [
               { role: "system", content: system },
-              { role: "user", content: user },
+              {
+                role: "user",
+                content: image
+                  ? [
+                      { type: "text", text: user },
+                      { type: "image_url", image_url: { url: `data:${image.mediaType};base64,${image.base64}` } },
+                    ]
+                  : user,
+              },
             ],
             response_format: { type: "json_object" },
             temperature: 0.2,
+            max_tokens: maxTokens,
           }),
           signal: AbortSignal.timeout(timeoutMs),
         });

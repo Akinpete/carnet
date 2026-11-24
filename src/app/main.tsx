@@ -22,6 +22,7 @@ import Capture from "./routes/Capture.tsx";
 const Settings = lazy(() => import("./routes/Settings.tsx"));
 const Review = lazy(() => import("./routes/Review.tsx"));
 const Player = lazy(() => import("./session/Player.tsx"));
+const Extract = lazy(() => import("./routes/Extract.tsx"));
 const Journal = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Journal })));
 const Grammar = lazy(() => import("./routes/Placeholder.tsx").then((m) => ({ default: m.Grammar })));
 
@@ -44,6 +45,8 @@ const router = createBrowserRouter([
   { path: "/signup", element: <PublicOnly><Signup /></PublicOnly> },
   // The session player takes the whole screen: no tab bar, one exit.
   { path: "/review/session", element: <RequireAuth><Suspense><Player /></Suspense></RequireAuth> },
+  // So does review-before-commit: its action bar sits where the tab bar would.
+  { path: "/inbox/:id", element: <RequireAuth><Suspense><Extract /></Suspense></RequireAuth> },
   {
     element: <RequireAuth><Shell /></RequireAuth>,
     children: [

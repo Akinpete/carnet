@@ -24,11 +24,34 @@ export type DumpView = {
   /** Why it failed, in words the learner can act on. */
   error: string | null;
   createdAt: number;
-  /** The pool entry this dump produced. */
+  /** The word this dump put in the pool, when it put in exactly one. */
   word: { lemma: string; pos: string; translation: string; rung: number; usageNote: string | null } | null;
+  /** How many words this dump put in the pool. */
+  kept: number;
   /** Committed, but the word was already in the pool. */
   alreadyInPool: boolean;
+  /** What extraction found: all of it, and how much is new to this learner. Null for a typed word. */
+  found: { total: number; fresh: number } | null;
 };
+
+/** A word extraction found, waiting to be kept or dropped. */
+export type CandidateView = {
+  wordId: string;
+  lemma: string;
+  pos: string;
+  gender: "m" | "f" | null;
+  translation: string;
+  usageNote: string | null;
+  /** As it appeared in the source, for highlighting. */
+  form: string | null;
+  /** The sentence it was met in. */
+  sentence: string | null;
+  /** Already in this learner's pool: shown, but not ticked. */
+  known: boolean;
+};
+
+/** GET /dumps/:id */
+export type DumpDetail = DumpView & { candidates: CandidateView[] };
 
 /** GET /sessions/today */
 export type TodayView = {

@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema.sqlite.ts";
 import { createGatewayAi, type Ai } from "../server/ai.ts";
 import { app } from "../server/app.ts";
-import type { Ctx, Kv, Tx } from "../server/ctx.ts";
+import type { Ctx, Kv, Storage, Tx } from "../server/ctx.ts";
 import { parseCost } from "../server/lib/password.ts";
 
 function kvFrom(ns: KVNamespace): Kv {
@@ -13,6 +13,19 @@ function kvFrom(ns: KVNamespace): Kv {
     put: (key, value, options) =>
       ns.put(key, value, options?.ttlSeconds ? { expirationTtl: options.ttlSeconds } : undefined),
     delete: (key) => ns.delete(key),
+  };
+}
+
+function storageFrom(bucket: R2Bucket): Storage {
+  return {
+    put: async (key, body, { contentType }) => {
+      await bucket.put(key, body, { httpMetadata: { contentType } });
+    },
+    get: async (key) => {
+      const object = await bucket.get(key);
+      return object ? { body: object.body, contentType: object.httpMetadata?.contentType ?? null } : null;
+    },
+    delete: (key) => bucket.delete(key),
   };
 }
 
@@ -35,6 +48,7 @@ export function cloudflareCtx(env: Env, ec: ExecutionContext): Ctx {
     db,
     tx,
     kv: kvFrom(env.SESSIONS),
+    storage: storageFrom(env.UPLOADS),
     ai: aiFrom(env),
     defer: (task) => ec.waitUntil(task().catch((err) => console.error("deferred task failed", err))),
     clientIp: (req) => req.headers.get("cf-connecting-ip"),

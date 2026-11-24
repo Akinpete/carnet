@@ -31,6 +31,13 @@ export interface Kv {
   delete(key: string): Promise<void>;
 }
 
+/** Private object storage for uploads: R2 hosted, MinIO self-hosted (M6). */
+export interface Storage {
+  put(key: string, body: ArrayBuffer | Uint8Array, options: { contentType: string }): Promise<void>;
+  get(key: string): Promise<{ body: ReadableStream; contentType: string | null } | null>;
+  delete(key: string): Promise<void>;
+}
+
 /** Runs work after the response has been sent. */
 export type Defer = (task: () => Promise<unknown>) => void;
 
@@ -38,6 +45,7 @@ export type Ctx = {
   db: Db;
   tx: Tx;
   kv: Kv;
+  storage: Storage;
   /** `null` when no model is configured: features that need one degrade, never crash. */
   ai: Ai | null;
   defer: Defer;

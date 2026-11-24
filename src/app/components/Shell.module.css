@@ -137,3 +137,9 @@
   color: var(--accent);
   font-weight: 400;
 }
+
+/* The Capture badge: dumps waiting for review. */
+.badge.amber,
+.sideBadge.amber {
+  color: var(--amber);
+}

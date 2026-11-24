@@ -1,4 +1,4 @@
-export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 429 | 500;
+export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 429 | 500 | 503;
 
 /** Thrown by handlers; `onError` maps it to the error envelope. */
 export class AppError extends Error {
