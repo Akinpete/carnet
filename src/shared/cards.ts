@@ -1,5 +1,6 @@
 // Card shapes and local grading, shared by the server (authoritative) and the
-// app (instant feedback). Rungs 1–2 are closed-form: no model call.
+// app (instant feedback). Rungs 1–2 are closed-form: no model call. Rung 3
+// and up are judged by the model, on the server only.
 
 type CardBase = {
   wordId: string;
@@ -27,10 +28,27 @@ export type RecallCard = CardBase & {
   answer: string; // the French lemma
 };
 
-export type Card = RecognitionCard | RecallCard;
+/** Rung 3: here is the word in a sentence you met it in — what does it mean here? */
+export type ComprehensionCard = CardBase & {
+  rung: 3;
+  type: "comprehension";
+  prompt: string; // the French sentence
+  /** The word as it appears in the sentence, to highlight. */
+  form: string | null;
+  lemma: string;
+  /** Where the sentence came from: the learner's own dump, or a generated example. */
+  source: "dump" | "example";
+};
 
-/** Highest rung with a card type built so far. M2 raises it to 3. */
-export const MAX_RUNG = 2;
+export type Card = RecognitionCard | RecallCard | ComprehensionCard;
+
+/** The cards the device can grade by itself. */
+export type LocalCard = RecognitionCard | RecallCard;
+
+export const isLocal = (card: Card): card is LocalCard => card.type === "recognition" || card.type === "recall";
+
+/** Highest rung with a card type built so far. M3 raises it to 5. */
+export const MAX_RUNG = 3;
 
 export type LocalAnswer = { choice: number } | { text: string } | { dontKnow: true };
 
@@ -60,7 +78,7 @@ export function stripAccents(text: string): string {
   return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").normalize("NFC");
 }
 
-export function gradeLocally(card: Card, answer: LocalAnswer): LocalResult {
+export function gradeLocally(card: LocalCard, answer: LocalAnswer): LocalResult {
   if (card.type === "recognition") {
     const expected = card.choices[card.answerIndex] ?? "";
     const correct = "choice" in answer && answer.choice === card.answerIndex;

@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { reviews, sessionsGenerated, SLOTS, userWords, users } from "../../db/schema.sqlite.ts";
-import { gradeLocally, MAX_RUNG, type LocalAnswer } from "../../shared/cards.ts";
+import { reviews, sessionsGenerated, SLOTS, userWords, users, words } from "../../db/schema.sqlite.ts";
+import { gradeLocally, isLocal, MAX_RUNG, type LocalAnswer } from "../../shared/cards.ts";
 import type { AnswerResult, SessionView, TodayView } from "../../shared/types.ts";
 import type { Ctx } from "../ctx.ts";
 import type { AppEnv } from "../env.ts";
@@ -11,8 +11,10 @@ import { newId } from "../ids.ts";
 import { addDays, todayIn } from "../lib/dates.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { idempotency } from "../middleware/idempotency.ts";
+import { AiError } from "../ai.ts";
+import { gradeComprehension, type Judgement } from "../services/grade.ts";
 import { schedule, type Grade, type Rung } from "../services/scheduler.ts";
-import { buildCards, selectSessionWords } from "../services/sessions.ts";
+import { buildCards, ensureExamples, selectSessionWords } from "../services/sessions.ts";
 import { validate } from "../validate.ts";
 
 /** M1 offers one session a day, stored in the morning slot. Three a day is M3. */
@@ -88,7 +90,7 @@ export const sessionRoutes = new Hono<AppEnv>()
     // Idempotent per slot per day: a started session is reopened, never regenerated.
     let session = await findSession(ctx, user.id, today);
     if (!session) {
-      const cards = buildCards(await selectSessionWords(ctx.db, user.id, today));
+      const cards = buildCards(await ensureExamples(ctx, await selectSessionWords(ctx.db, user.id, today)));
       if (cards.length === 0) throw new AppError(409, "nothing_due", "Nothing is due today. Add some words and come back tomorrow.");
       await ctx.db
         .insert(sessionsGenerated)
@@ -128,12 +130,40 @@ export const sessionRoutes = new Hono<AppEnv>()
       .get();
     if (!state) throw new AppError(404, "word_not_found", "That word isn't in your pool any more.");
 
-    // Rungs 1–2 are graded here, with no model call. Right = 3, wrong = 0
-    // (grades 1, 2 and 4 need judgement that arrives with open-form grading in M3).
     const answer: LocalAnswer =
       body.choice !== undefined ? { choice: body.choice } : body.text !== undefined ? { text: body.text } : { dontKnow: true };
-    const result = gradeLocally(card, answer);
-    const grade: Grade = result.correct ? 3 : 0;
+    let grade: Grade;
+    let correct: boolean;
+    let expected: string;
+    let accentSlip = false;
+    let judged: Judgement | null = null;
+
+    if (isLocal(card)) {
+      // Rungs 1–2 are graded here, with no model call. Right = 3, wrong = 0.
+      const result = gradeLocally(card, answer);
+      grade = result.correct ? 3 : 0;
+      ({ correct, expected, accentSlip } = result);
+    } else {
+      // Rung 3: the model judges the meaning. If it can't, nothing is recorded and the card can be tried again.
+      const word = await ctx.db.select({ translation: words.translation }).from(words).where(eq(words.id, card.wordId)).get();
+      const translation = word?.translation ?? "";
+      const given = "text" in answer ? answer.text.trim() : "";
+      if (!given) {
+        judged = { grade: 0, correct: false, close: false, errorKind: "forgot", meaning: translation, explanation: null };
+      } else {
+        if (!ctx.ai) throw new AppError(503, "grading_unavailable", "Checking answers isn't set up on this server yet.");
+        try {
+          judged = await gradeComprehension({ ...ctx, ai: ctx.ai }, card, translation, given);
+        } catch (err) {
+          if (!(err instanceof AiError)) throw err;
+          console.error("grading failed", session.id, card.wordId, err);
+          throw new AppError(503, "grading_failed", "Couldn't check that answer just now. Try again.");
+        }
+      }
+      ({ grade, correct } = judged);
+      expected = judged.meaning;
+    }
+
     const next = schedule(
       {
         rung: state.rung as Rung,
@@ -159,6 +189,7 @@ export const sessionRoutes = new Hono<AppEnv>()
         sessionId: session.id,
         rung: card.rung,
         grade,
+        errorKind: judged?.errorKind ?? null,
         answerText,
         latencyMs: body.latencyMs ?? null,
         createdAt: Date.now(),
@@ -170,10 +201,11 @@ export const sessionRoutes = new Hono<AppEnv>()
     ]);
 
     const view: AnswerResult = {
-      correct: result.correct,
-      expected: result.expected,
-      accentSlip: result.accentSlip,
+      correct,
+      expected,
+      accentSlip,
       next: { rung: next.rung, intervalDays: next.intervalDays, dueOn },
+      ...(judged ? { judged: { close: judged.close, errorKind: judged.errorKind, explanation: judged.explanation } } : {}),
     };
     return c.json(view, 200);
   })

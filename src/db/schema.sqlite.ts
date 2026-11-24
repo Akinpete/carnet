@@ -70,6 +70,8 @@ export const words = sqliteTable(
     usageNote: text("usage_note"), // the trap, when there is one
     /** Three plausible wrong meanings for recognition cards (M1 decision). */
     distractors: json<string[]>("distractors"),
+    /** A short example sentence, for rung 3 when the learner has no sentence of their own (M2). */
+    example: json<{ fr: string; form: string | null }>("example"),
     audioKey: text("audio_key"), // storage key, null until synthesised
     createdAt: timestampMs("created_at").notNull(),
   },

@@ -1,11 +1,12 @@
 // The card player: full screen, no tab bar, one exit ("Close"). Rungs 1–2
 // are graded on the device for instant feedback; the server's grade is the
 // record and reconciles if it ever disagrees. An answer that fails to save
-// is retried and never stops the session.
+// is retried and never stops the session. Rung 3 is judged by the model and
+// is never optimistic: it shows "Checking…" until the grade arrives.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { gradeLocally, type Card, type LocalAnswer, type LocalResult } from "../../shared/cards.ts";
-import type { SessionView } from "../../shared/types.ts";
+import { gradeLocally, isLocal, stripAccents, type Card, type LocalAnswer, type LocalResult } from "../../shared/cards.ts";
+import type { AnswerResult, SessionView } from "../../shared/types.ts";
 import { Button } from "../components/Button.tsx";
 import { Sheet } from "../components/Sheet.tsx";
 import { useToast } from "../components/Toast.tsx";
@@ -16,7 +17,7 @@ import s from "./Player.module.css";
 
 const PASS_ADVANCE_MS = 600;
 
-type Shown = LocalResult & { chosen: number | null };
+type Shown = LocalResult & { chosen: number | null; judged?: AnswerResult["judged"] };
 
 export default function Player() {
   const navigate = useNavigate();
@@ -32,6 +33,8 @@ export default function Player() {
   const [shown, setShown] = useState<Shown | null>(null);
   const [finished, setFinished] = useState<{ correct: number; total: number } | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [judging, setJudging] = useState(false);
+  const [judgeError, setJudgeError] = useState<string | null>(null);
   const shownAt = useRef(Date.now());
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const started = useRef(false);
@@ -71,6 +74,7 @@ export default function Player() {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
     if (!session) return;
     setShown(null);
+    setJudgeError(null);
     if (index + 1 >= session.cards.length) finish(session);
     else {
       setIndex(index + 1);
@@ -78,8 +82,30 @@ export default function Player() {
     }
   }, [session, index, finish]);
 
+  /** Rung 3: wait for the model's judgement. A failure keeps the answer, to try again. */
+  const submitJudged = (given: LocalAnswer) => {
+    if (!session || !card || shown || judging) return;
+    setJudging(true);
+    setJudgeError(null);
+    answer.mutate(
+      { sessionId: session.id, wordId: card.wordId, latencyMs: Date.now() - shownAt.current, idempotencyKey: crypto.randomUUID(), ...given },
+      {
+        onSuccess: (server) => {
+          if (server.correct) correctCount.current += 1;
+          setShown({ correct: server.correct, expected: server.expected, accentSlip: false, chosen: null, judged: server.judged });
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && err.code === "already_answered") return advance();
+          setJudgeError(err instanceof ApiError ? err.message : "Couldn't check that answer just now. Try again.");
+        },
+        onSettled: () => setJudging(false),
+      },
+    );
+  };
+
   const submit = (given: LocalAnswer) => {
     if (!session || !card || shown) return;
+    if (!isLocal(card)) return submitJudged(given);
     const local = gradeLocally(card, given);
     setShown({ ...local, chosen: "choice" in given ? given.choice : null });
     if (local.correct) correctCount.current += 1;
@@ -172,8 +198,18 @@ export default function Player() {
       <main className={s.stage}>
         {card.type === "recognition" ? (
           <RecognitionView key={card.wordId} card={card} shown={shown} onAnswer={submit} onContinue={advance} />
-        ) : (
+        ) : card.type === "recall" ? (
           <RecallView key={card.wordId} card={card} shown={shown} onAnswer={submit} onContinue={advance} />
+        ) : (
+          <ComprehensionView
+            key={card.wordId}
+            card={card}
+            shown={shown}
+            judging={judging}
+            error={judgeError}
+            onAnswer={submit}
+            onContinue={advance}
+          />
         )}
       </main>
 
@@ -326,6 +362,116 @@ function RecallView({ card, shown, onAnswer, onContinue }: ViewProps<Extract<Car
         {shown ? <Verdict shown={shown} note={card.usageNote ?? null} onContinue={onContinue} /> : null}
       </section>
       {!shown ? (
+        <Button variant="quiet" className={s.dontKnow} onClick={() => onAnswer({ dontKnow: true })}>
+          I don't know this one
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
+/** Marks the word where it sits in the sentence. */
+function highlight(sentence: string, form: string | null) {
+  if (!form) return sentence;
+  const fold = (t: string) => stripAccents(t.toLowerCase());
+  const at = fold(sentence).indexOf(fold(form));
+  if (at === -1 || fold(sentence).length !== sentence.length) return sentence;
+  return (
+    <>
+      {sentence.slice(0, at)}
+      <mark className={s.mark}>{sentence.slice(at, at + form.length)}</mark>
+      {sentence.slice(at + form.length)}
+    </>
+  );
+}
+
+function JudgedVerdict({ shown, card, onContinue }: { shown: Shown; card: Extract<Card, { type: "comprehension" }>; onContinue: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  const close = shown.judged?.close ?? false;
+  const explanation = shown.judged?.explanation ?? null;
+  return (
+    <div className={s.verdict} role="status">
+      <p className={shown.correct ? s.right : s.wrong}>
+        {shown.correct ? <CheckIcon /> : <CrossIcon />}
+        {shown.correct && !close ? (
+          <span>
+            Right. Here it means <strong>{shown.expected}</strong>.
+          </span>
+        ) : shown.correct ? (
+          <span>
+            Nearly. Here it means <strong>{shown.expected}</strong>.
+          </span>
+        ) : (
+          <span>
+            Not quite. Here it means <strong>{shown.expected}</strong>.
+          </span>
+        )}
+      </p>
+      {explanation ? <p className={s.note}>{explanation}</p> : null}
+      {card.usageNote && !explanation ? <p className={s.note}>{card.usageNote}</p> : null}
+      <Button ref={ref} variant="ink" block onClick={onContinue}>
+        Continue
+      </Button>
+    </div>
+  );
+}
+
+type ComprehensionProps = ViewProps<Extract<Card, { type: "comprehension" }>> & { judging: boolean; error: string | null };
+
+function ComprehensionView({ card, shown, judging, error, onAnswer, onContinue }: ComprehensionProps) {
+  const [text, setText] = useState("");
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (text.trim() && !judging) onAnswer({ text });
+  };
+  const shownForm = card.form ?? card.lemma;
+  return (
+    <>
+      <section className={s.card} aria-label="Comprehension card" aria-busy={judging || undefined}>
+        <div className={s.cardHead}>
+          <span className={s.monoSmall}>{posLabel(card.pos, card.gender)}</span>
+          <span className={s.monoSmall}>Rung 3 · In context</span>
+        </div>
+        <blockquote className={s.sentence} lang="fr">
+          « {highlight(card.prompt, card.form)} »
+        </blockquote>
+        {card.source === "example" ? <p className={s.monoSmall}>An example sentence</p> : null}
+        <hr className={s.rule} />
+        <p className={s.ask}>
+          What does <strong lang="fr">{shownForm}</strong> mean here?
+        </p>
+        <form className={s.recallForm} onSubmit={submit}>
+          <label htmlFor="meaning" className="visually-hidden">
+            The meaning, in English
+          </label>
+          <input
+            id="meaning"
+            className={s.meaningInput}
+            lang="en"
+            autoFocus
+            autoComplete="off"
+            enterKeyHint="go"
+            placeholder="In English"
+            maxLength={200}
+            value={text}
+            readOnly={!!shown || judging}
+            onChange={(e) => setText(e.target.value)}
+          />
+          {!shown ? (
+            <Button type="submit" variant="primary" block disabled={!text.trim() || judging}>
+              {judging ? "Checking…" : error ? "Try again" : "Check"}
+            </Button>
+          ) : null}
+          {error && !judging ? (
+            <p className={s.judgeError} role="alert">
+              {error}
+            </p>
+          ) : null}
+        </form>
+        {shown ? <JudgedVerdict shown={shown} card={card} onContinue={onContinue} /> : null}
+      </section>
+      {!shown && !judging ? (
         <Button variant="quiet" className={s.dontKnow} onClick={() => onAnswer({ dontKnow: true })}>
           I don't know this one
         </Button>

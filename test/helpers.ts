@@ -65,6 +65,8 @@ export function fakeAi(
   texts: Record<string, FakeReply> = {},
   /** Transcripts, keyed by the recording's bytes as text. */
   speech: Record<string, string> = {},
+  /** Replies for other routes (grade, generate), from the request's user text. Throw to fail the call. */
+  handlers: Partial<Record<ChatRequest<unknown>["route"], (user: string) => unknown>> = {},
 ): Ai & { calls: string[]; routes: string[] } {
   const calls: string[] = [];
   const routes: string[] = [];
@@ -81,6 +83,8 @@ export function fakeAi(
     async chat<T>(req: ChatRequest<T>): Promise<T> {
       calls.push(req.user);
       routes.push(req.route);
+      const handler = handlers[req.route];
+      if (handler) return req.schema.parse(handler(req.user));
       if (req.route === "extract") {
         const key = req.image ? `image:${atob(req.image.base64)}` : req.user;
         if (req.image) calls[calls.length - 1] = key;

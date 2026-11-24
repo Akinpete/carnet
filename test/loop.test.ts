@@ -154,7 +154,8 @@ describe("one session a day", () => {
     const slip = await json<AnswerResult>(
       await me.call(`/sessions/${session.id}/answer`, { body: { wordId: strike.wordId, text: "  Greve " } }),
     );
-    expect(slip).toMatchObject({ correct: true, accentSlip: true, expected: "la grève", next: { rung: 2, intervalDays: 6 } });
+    // A pass climbs to rung 3, comprehension, which exists since M2.
+    expect(slip).toMatchObject({ correct: true, accentSlip: true, expected: "la grève", next: { rung: 3, intervalDays: 6 } });
 
     const wrong = await json<AnswerResult>(
       await me.call(`/sessions/${session.id}/answer`, { body: { wordId: findAgain.wordId, text: "rencontrer" } }),

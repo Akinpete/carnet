@@ -75,7 +75,16 @@ export type SessionView = {
 
 export type AnswerResult = {
   correct: boolean;
+  /** The right answer: the word (recall), the meaning (recognition, comprehension). */
   expected: string;
   accentSlip: boolean;
   next: { rung: number; intervalDays: number; dueOn: string };
+  /** Model-graded cards (rung 3 and up) only. */
+  judged?: {
+    /** Right idea, not quite there: passes, but the word stays on its rung. */
+    close: boolean;
+    errorKind: string | null;
+    /** Why, when it wasn't right: the mechanism, in a sentence or two. */
+    explanation: string | null;
+  };
 };

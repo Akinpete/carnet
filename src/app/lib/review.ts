@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AnswerResult } from "../../shared/types.ts";
-import { api, unwrap } from "./api.ts";
+import { api, ApiError, unwrap } from "./api.ts";
 
 export const todayKey = ["session", "today"] as const;
 
@@ -38,7 +38,10 @@ export function useAnswer() {
       unwrap(
         api.sessions[":id"].answer.$post({ param: { id: sessionId }, json }, { headers: { "idempotency-key": idempotencyKey } }),
       ),
-    retry: 3,
+    // Retry a dropped connection or a server fault, not a refusal, and never a
+    // failed grading call: the learner chooses to try that again.
+    retry: (count, err) =>
+      count < 3 && err instanceof ApiError && (err.status === 0 || (err.status >= 500 && err.code !== "grading_failed")),
   });
 }
 
