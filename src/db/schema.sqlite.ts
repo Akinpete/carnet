@@ -116,6 +116,8 @@ export const reviews = sqliteTable(
     answerText: text("answer_text"),
     contested: bool("contested").notNull().default(false),
     edited: bool("edited").notNull().default(false), // spoken transcript changed before submit (M3)
+    /** How a speaking card was answered: the M3 gate and the skip rate read this. Null before M3. */
+    answerMode: text("answer_mode", { enum: ["spoken", "typed", "skipped"] }),
     latencyMs: integer("latency_ms"),
     createdAt: timestampMs("created_at").notNull(),
   },

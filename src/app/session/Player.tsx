@@ -13,11 +13,24 @@ import { useToast } from "../components/Toast.tsx";
 import { ApiError } from "../lib/api.ts";
 import { posLabel } from "../lib/labels.ts";
 import { isPlaySlot, useAnswer, useCompleteSession, useStartSession } from "../lib/review.ts";
+import { Correction } from "./Correction.tsx";
 import s from "./Player.module.css";
+import { ProductionView, type SpokenAnswer } from "./Speaking.tsx";
 
 const PASS_ADVANCE_MS = 600;
 
-type Shown = LocalResult & { chosen: number | null; judged?: AnswerResult["judged"] };
+type Shown = LocalResult & {
+  chosen: number | null;
+  judged?: AnswerResult["judged"];
+  /** Model-graded cards: the whole result, and what the learner gave. */
+  result?: AnswerResult;
+  given?: string;
+};
+
+/** Model-graded answers that weren't simply right get the correction slide. */
+const needsCorrection = (shown: Shown) => !!shown.result && (!shown.result.correct || !!shown.result.judged?.close);
+
+type Given = LocalAnswer | (SpokenAnswer & { text: string }) | { skipped: true };
 
 export default function Player() {
   const navigate = useNavigate();
@@ -86,8 +99,8 @@ export default function Player() {
     }
   }, [session, index, finish]);
 
-  /** Rung 3: wait for the model's judgement. A failure keeps the answer, to try again. */
-  const submitJudged = (given: LocalAnswer) => {
+  /** Rungs 3–4: wait for the model's judgement. A failure keeps the answer, to try again. */
+  const submitJudged = (given: Given) => {
     if (!session || !card || shown || judging) return;
     setJudging(true);
     setJudgeError(null);
@@ -95,8 +108,17 @@ export default function Player() {
       { sessionId: session.id, wordId: card.wordId, latencyMs: Date.now() - shownAt.current, idempotencyKey: crypto.randomUUID(), ...given },
       {
         onSuccess: (server) => {
+          if ("skipped" in given) return advance(); // skipping isn't a mistake to correct
           if (server.correct) correctCount.current += 1;
-          setShown({ correct: server.correct, expected: server.expected, accentSlip: false, chosen: null, judged: server.judged });
+          setShown({
+            correct: server.correct,
+            expected: server.expected,
+            accentSlip: false,
+            chosen: null,
+            judged: server.judged,
+            result: server,
+            given: "text" in given ? given.text : "dontKnow" in given ? "I don't know" : "",
+          });
         },
         onError: (err) => {
           if (err instanceof ApiError && err.code === "already_answered") return advance();
@@ -180,15 +202,32 @@ export default function Player() {
 
   if (!session || !card) return <div className={s.player} aria-busy="true" />;
 
+  const progress = `${practice ? "Practice" : "Today"} · ${index + 1} of ${session.cards.length}`;
+
+  if (shown && needsCorrection(shown) && shown.result && (card.type === "comprehension" || card.type === "production")) {
+    return (
+      <div className={`${s.player} ${s.warm}`}>
+        <Correction
+          card={card}
+          answer={shown.given ?? ""}
+          result={shown.result}
+          sessionId={session.id}
+          progress={progress}
+          onContinue={advance}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className={s.player}>
+    <div className={`${s.player} ${card.type === "production" ? s.dark : ""}`}>
       <div className={s.top}>
         <div className={s.topRow}>
           <button type="button" className={s.close} onClick={close}>
             Close
           </button>
           <span className={s.mono}>
-            {practice ? "Practice" : "Today"} · {index + 1} of {session.cards.length}
+            {progress}
           </span>
         </div>
         <div
@@ -208,6 +247,19 @@ export default function Player() {
           <RecognitionView key={card.wordId} card={card} shown={shown} onAnswer={submit} onContinue={advance} />
         ) : card.type === "recall" ? (
           <RecallView key={card.wordId} card={card} shown={shown} onAnswer={submit} onContinue={advance} />
+        ) : card.type === "production" ? (
+          shown ? (
+            <ProductionRight key={card.wordId} shown={shown} onContinue={advance} />
+          ) : (
+            <ProductionView
+              key={card.wordId}
+              card={card}
+              judging={judging}
+              error={judgeError}
+              onSend={(spoken) => submitJudged(spoken)}
+              onSkip={() => submitJudged({ skipped: true })}
+            />
+          )
         ) : (
           <ComprehensionView
             key={card.wordId}
@@ -377,6 +429,34 @@ function RecallView({ card, shown, onAnswer, onContinue }: ViewProps<Extract<Car
         </Button>
       ) : null}
     </>
+  );
+}
+
+/** A spoken sentence that was simply right: say so, show the word in use, move on when ready. */
+function ProductionRight({ shown, onContinue }: { shown: Shown; onContinue: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  const example = shown.judged?.example;
+  return (
+    <section className={s.speak} aria-label="Production card">
+      <div className={s.verdict} role="status">
+        <p className={s.right}>
+          <CheckIcon />
+          <span>Right.</span>
+        </p>
+        <p className={s.speakTranscript} lang="fr">
+          « {shown.given} »
+        </p>
+        {example ? (
+          <p className={s.speakMeaning}>
+            Another way: <span lang="fr">{example.fr}</span>
+          </p>
+        ) : null}
+        <Button ref={ref} variant="primary" block onClick={onContinue}>
+          Continue
+        </Button>
+      </div>
+    </section>
   );
 }
 

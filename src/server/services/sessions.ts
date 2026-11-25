@@ -175,6 +175,9 @@ export function buildCards(selected: SelectedWord[], random: () => number = Math
     const rung = Math.min(w.rung, MAX_RUNG);
     // Rung 3 needs a sentence; without one, the word gets a recall card today.
     const sentence = w.sentence ? { fr: w.sentence, form: w.form, source: "dump" as const } : w.example ? { ...w.example, source: "example" as const } : null;
+    if (rung >= 4) {
+      return { ...base, rung: 4, type: "production", prompt: w.lemma, lemma: w.lemma, translation: w.translation };
+    }
     if (rung >= 3 && sentence) {
       return { ...base, rung: 3, type: "comprehension", prompt: sentence.fr, form: sentence.form, lemma: w.lemma, source: sentence.source };
     }

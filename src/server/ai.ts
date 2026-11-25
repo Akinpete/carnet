@@ -94,26 +94,38 @@ export function createGatewayAi(config: GatewayConfig): Ai {
     return res;
   }
 
+  async function transcribeOnce({ route, audio, mediaType, language, timeoutMs = 15_000 }: TranscribeRequest): Promise<{ text: string }> {
+    const t = config.transcribe;
+    if (!t) throw new AiError("No transcription model is configured.", false);
+    let text: string | undefined;
+    if (t.style === "workers-ai") {
+      const body = JSON.stringify({ audio: Buffer.from(audio).toString("base64"), ...(language ? { language } : {}) });
+      const res = await send(t.url, { method: "POST", headers: { "content-type": "application/json" }, body }, route, timeoutMs);
+      text = ((await res.json()) as { result?: { text?: string } }).result?.text;
+    } else {
+      const form = new FormData();
+      form.append("file", new Blob([new Uint8Array(audio)], { type: mediaType }), "clip");
+      form.append("model", t.model);
+      if (language) form.append("language", language);
+      const res = await send(`${base}/audio/transcriptions`, { method: "POST", body: form }, route, timeoutMs);
+      text = ((await res.json()) as { text?: string }).text;
+    }
+    if (typeof text !== "string") throw new AiError("The transcription came back empty.", true);
+    return { text };
+  }
+
   return {
-    async transcribe({ route, audio, mediaType, language, timeoutMs = 15_000 }) {
-      const t = config.transcribe;
-      if (!t) throw new AiError("No transcription model is configured.", false);
-      let text: string | undefined;
-      if (t.style === "workers-ai") {
-        const body = JSON.stringify({ audio: Buffer.from(audio).toString("base64"), ...(language ? { language } : {}) });
-        const res = await send(t.url, { method: "POST", headers: { "content-type": "application/json" }, body }, route, timeoutMs);
-        text = ((await res.json()) as { result?: { text?: string } }).result?.text;
-      } else {
-        const form = new FormData();
-        form.append("file", new Blob([new Uint8Array(audio)], { type: mediaType }), "clip");
-        form.append("model", t.model);
-        if (language) form.append("language", language);
-        const res = await send(`${base}/audio/transcriptions`, { method: "POST", body: form }, route, timeoutMs);
-        text = ((await res.json()) as { text?: string }).text;
+    async transcribe(request) {
+      // One retry on a server fault: Workers AI's speech machines fail now and then
+      // (seen 2026-11-25: "libcublas.so.12 is not found"), and the next is usually fine.
+      try {
+        return await transcribeOnce(request);
+      } catch (err) {
+        if (err instanceof AiError && err.retryable) return transcribeOnce(request);
+        throw err;
       }
-      if (typeof text !== "string") throw new AiError("The transcription came back empty.", true);
-      return { text };
     },
+
 
     async chat({ route, system, user, image, schema, cacheTtlSeconds, timeoutMs = 25_000, maxTokens = 1024 }) {
       const body = JSON.stringify({

@@ -104,5 +104,9 @@ export type AnswerResult = {
     errorKind: string | null;
     /** Why, when it wasn't right: the mechanism, in a sentence or two. */
     explanation: string | null;
+    /** Rung 4: the learner's sentence with only the problem fixed. */
+    corrected: string | null;
+    /** Rung 4: the word used correctly, with its English. */
+    example: { fr: string; en: string } | null;
   };
 };

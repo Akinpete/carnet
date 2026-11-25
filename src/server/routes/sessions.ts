@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { reviews, SESSION_SLOTS, sessionsGenerated, SLOTS, userWords, users, words } from "../../db/schema.sqlite.ts";
-import { gradeLocally, isLocal, MAX_RUNG, type LocalAnswer } from "../../shared/cards.ts";
+import { gradeLocally, isLocal, isSpeaking, MAX_RUNG, type LocalAnswer } from "../../shared/cards.ts";
 import type { AnswerResult, SessionSlot, SessionView, TodayView } from "../../shared/types.ts";
 import type { Ctx } from "../ctx.ts";
 import type { AppEnv } from "../env.ts";
@@ -12,7 +12,7 @@ import { addDays, todayIn } from "../lib/dates.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { idempotency } from "../middleware/idempotency.ts";
 import { AiError } from "../ai.ts";
-import { gradeComprehension, type Judgement } from "../services/grade.ts";
+import { gradeComprehension, gradeProduction, type Judgement } from "../services/grade.ts";
 import { schedule, type Grade, type Rung } from "../services/scheduler.ts";
 import {
   buildCards,
@@ -81,12 +81,18 @@ const answerBody = z
   .object({
     wordId: z.string().min(1).max(64),
     choice: z.number().int().min(0).max(9).optional(),
-    text: z.string().max(200).optional(),
+    text: z.string().max(400).optional(),
     dontKnow: z.literal(true).optional(),
+    /** Speaking cards: "Skip — I can't say this yet". */
+    skipped: z.literal(true).optional(),
+    /** Speaking cards: how the text was produced. */
+    mode: z.enum(["spoken", "typed"]).optional(),
+    /** Spoken answers: the transcript was changed by hand before sending. */
+    edited: z.boolean().optional(),
     latencyMs: z.number().int().min(0).max(3_600_000).optional(),
   })
-  .refine((b) => [b.choice !== undefined, b.text !== undefined, b.dontKnow].filter(Boolean).length === 1, {
-    error: "Send exactly one of choice, text or dontKnow.",
+  .refine((b) => [b.choice !== undefined, b.text !== undefined, b.dontKnow, b.skipped].filter(Boolean).length === 1, {
+    error: "Send exactly one of choice, text, dontKnow or skipped.",
   });
 
 export const sessionRoutes = new Hono<AppEnv>()
@@ -200,8 +206,13 @@ export const sessionRoutes = new Hono<AppEnv>()
       const result = gradeLocally(card, answer);
       grade = result.correct ? 3 : 0;
       ({ correct, expected, accentSlip } = result);
+    } else if (body.skipped) {
+      // Skipped, not forgotten (on a train, say): a lapse that holds the rung, back tomorrow.
+      judged = { grade: 1, correct: false, close: false, errorKind: null, meaning: card.type === "production" ? card.translation : "", explanation: null };
+      ({ grade, correct } = judged);
+      expected = judged.meaning;
     } else {
-      // Rung 3: the model judges the meaning. If it can't, nothing is recorded and the card can be tried again.
+      // Rungs 3–4: the model judges. If it can't, nothing is recorded and the card can be tried again.
       const word = await ctx.db.select({ translation: words.translation }).from(words).where(eq(words.id, card.wordId)).get();
       const translation = word?.translation ?? "";
       const given = "text" in answer ? answer.text.trim() : "";
@@ -209,8 +220,12 @@ export const sessionRoutes = new Hono<AppEnv>()
         judged = { grade: 0, correct: false, close: false, errorKind: "forgot", meaning: translation, explanation: null };
       } else {
         if (!ctx.ai) throw new AppError(503, "grading_unavailable", "Checking answers isn't set up on this server yet.");
+        const ai = { ...ctx, ai: ctx.ai };
         try {
-          judged = await gradeComprehension({ ...ctx, ai: ctx.ai }, card, translation, given);
+          judged =
+            card.type === "production"
+              ? await gradeProduction(ai, card, given)
+              : await gradeComprehension(ai, card, translation, given);
         } catch (err) {
           if (!(err instanceof AiError)) throw err;
           console.error("grading failed", session.id, card.wordId, err);
@@ -250,6 +265,8 @@ export const sessionRoutes = new Hono<AppEnv>()
         grade,
         errorKind: judged?.errorKind ?? null,
         answerText,
+        edited: body.mode === "spoken" && body.edited === true,
+        answerMode: isSpeaking(card) ? (body.skipped ? "skipped" : (body.mode ?? "typed")) : null,
         latencyMs: body.latencyMs ?? null,
         createdAt: Date.now(),
       }),
@@ -271,9 +288,34 @@ export const sessionRoutes = new Hono<AppEnv>()
         ? { rung: state.rung, intervalDays: state.intervalDays, dueOn: state.dueOn }
         : { rung: next.rung, intervalDays: next.intervalDays, dueOn },
       ...(practice ? { practice: true as const } : {}),
-      ...(judged ? { judged: { close: judged.close, errorKind: judged.errorKind, explanation: judged.explanation } } : {}),
+      ...(judged
+        ? {
+            judged: {
+              close: judged.close,
+              errorKind: judged.errorKind,
+              explanation: judged.explanation,
+              corrected: judged.corrected ?? null,
+              example: judged.example ?? null,
+            },
+          }
+        : {}),
     };
     return c.json(view, 200);
+  })
+  // "This was unfair": the one write a review allows after the fact. It marks the
+  // grade for calibration (BACKEND.md, The tuning problem); it doesn't change it.
+  .post("/:id/contest", validate("json", z.object({ wordId: z.string().min(1).max(64) })), async (c) => {
+    const { ctx, user } = c.var;
+    const session = await ownedSession(ctx, user.id, c.req.param("id"));
+    const { wordId } = c.req.valid("json");
+    const review = await ctx.db
+      .select({ id: reviews.id })
+      .from(reviews)
+      .where(and(eq(reviews.sessionId, session.id), eq(reviews.wordId, wordId), eq(reviews.userId, user.id)))
+      .get();
+    if (!review) throw new AppError(404, "review_not_found", "That card hasn't been answered in this session.");
+    await ctx.db.update(reviews).set({ contested: true }).where(eq(reviews.id, review.id));
+    return c.json({ contested: true }, 200);
   })
   .post("/:id/complete", async (c) => {
     const { ctx, user } = c.var;

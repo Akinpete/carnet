@@ -8,12 +8,14 @@ import { auth } from "./routes/auth.ts";
 import { dumpRoutes } from "./routes/dumps.ts";
 import { me } from "./routes/me.ts";
 import { sessionRoutes } from "./routes/sessions.ts";
+import { transcribeRoutes } from "./routes/transcribe.ts";
 
 const api = new Hono<AppEnv>()
   .route("/auth", auth)
   .route("/me", me)
   .route("/dumps", dumpRoutes)
-  .route("/sessions", sessionRoutes);
+  .route("/sessions", sessionRoutes)
+  .route("/transcribe", transcribeRoutes);
 
 export const app = new Hono<AppEnv>()
   .use(requestId())

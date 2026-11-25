@@ -291,3 +291,299 @@
   line-height: 1.45;
   color: var(--amber);
 }
+
+/* ---------- Rung 4: the dark speaking card (Speak.dc.html) ---------- */
+.dark {
+  --paper: #111110;
+  --paper-raised: #1b1b19;
+  --ink: #f7f5f0;
+  --ink-2: #c9c6be;
+  --ink-muted: #a8a59e;
+  --ink-label: #8a8780;
+  --ink-faint: #6b6862;
+  --line: #4a4844;
+  --line-soft: #2e2d2a;
+  --line-faint: #2e2d2a;
+  --good: #8fc0a0;
+  --amber: #e0b26a;
+  background: var(--paper);
+  color: var(--ink);
+  color-scheme: dark;
+}
+
+.speak {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.speakLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8da2f0;
+}
+
+.speakAsk {
+  margin-top: 20px;
+  font-size: 19px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.speak .word {
+  margin-top: 10px;
+  font-size: 56px;
+}
+
+.speakMeaning {
+  margin-top: 14px;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink-label);
+}
+
+.listening {
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.speakTranscript {
+  font-family: var(--font-display);
+  font-size: 27px;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.speakEllipsis {
+  color: var(--ink-faint);
+}
+
+.meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+}
+
+.meter > span {
+  width: 3px;
+  background: var(--line);
+  transition: height 70ms linear;
+}
+
+.meter > span.meterOn {
+  background: #8da2f0;
+}
+
+.micRow {
+  display: flex;
+  justify-content: center;
+}
+
+.mic {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 0;
+  background: #1f3fd4;
+  color: #f7f5f0;
+  box-shadow: 0 0 0 10px rgba(31, 63, 212, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.micOn {
+  box-shadow: 0 0 0 14px rgba(31, 63, 212, 0.32);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mic {
+    transition: box-shadow 150ms ease;
+  }
+}
+
+.mic:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.speakHint {
+  margin-top: -14px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-label);
+}
+
+.speakForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.speakField {
+  width: 100%;
+  min-height: 88px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--paper-raised);
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.35;
+  color: var(--ink);
+  resize: vertical;
+}
+
+.speakFoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.typeInstead {
+  width: 100%;
+  min-height: var(--touch);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-size: 15px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* ---------- The correction slide (Correction.dc.html) ---------- */
+.warm {
+  background: var(--warm);
+}
+
+.correction {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 16px) var(--gutter) calc(env(safe-area-inset-bottom) + 24px);
+  gap: 16px;
+}
+
+.correctionTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--touch);
+}
+
+.correctionLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.correctionBody {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.correctionCard,
+.correctionPanel {
+  background: var(--paper-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  padding: 22px 20px;
+}
+
+.correctionCard {
+  border-color: var(--warm-line);
+}
+
+.correctionCard .rule {
+  margin: 18px 0;
+}
+
+.saidStruck,
+.saidKept {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.saidStruck {
+  color: var(--amber);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.saidKept {
+  color: var(--ink-2);
+}
+
+.correctionFix {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1.15;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.correctionWhy {
+  margin-top: 12px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.correctionExample {
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.correctionEnglish {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.correctionNext {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-label);
+}
+
+.correctionRung {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--amber);
+}
+
+.correctionFoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}

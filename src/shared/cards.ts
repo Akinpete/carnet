@@ -40,15 +40,27 @@ export type ComprehensionCard = CardBase & {
   source: "dump" | "example";
 };
 
-export type Card = RecognitionCard | RecallCard | ComprehensionCard;
+/** Rung 4: say (or type) a sentence of your own using the word. */
+export type ProductionCard = CardBase & {
+  rung: 4;
+  type: "production";
+  prompt: string; // the lemma
+  lemma: string;
+  translation: string;
+};
+
+export type Card = RecognitionCard | RecallCard | ComprehensionCard | ProductionCard;
+
+/** Cards answered by speaking (with "Type it instead" always beside it). */
+export const isSpeaking = (card: Card): card is ProductionCard => card.type === "production";
 
 /** The cards the device can grade by itself. */
 export type LocalCard = RecognitionCard | RecallCard;
 
 export const isLocal = (card: Card): card is LocalCard => card.type === "recognition" || card.type === "recall";
 
-/** Highest rung with a card type built so far. M3 raises it to 5. */
-export const MAX_RUNG = 3;
+/** Highest rung with a card type built so far. Rung 5 (inflection) is next. */
+export const MAX_RUNG = 4;
 
 export type LocalAnswer = { choice: number } | { text: string } | { dontKnow: true };
 

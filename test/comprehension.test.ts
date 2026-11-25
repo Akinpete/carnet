@@ -54,7 +54,7 @@ describe("rung 3: comprehension", () => {
       correct: true,
       expected: "found (for me)",
       judged: { close: false, errorKind: null, explanation: null },
-      next: { rung: 3, intervalDays: 15 },
+      next: { rung: 4, intervalDays: 15 }, // climbs to production
     });
     expect(ai.routes).toContain("grade");
     const row = await env.DB.prepare("SELECT grade, rung, error_kind, answer_text FROM reviews WHERE session_id = ? AND word_id = ?")

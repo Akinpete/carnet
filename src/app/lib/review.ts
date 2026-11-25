@@ -33,6 +33,9 @@ export type AnswerInput = {
   choice?: number;
   text?: string;
   dontKnow?: true;
+  skipped?: true;
+  mode?: "spoken" | "typed";
+  edited?: boolean;
   latencyMs: number;
   /** Same key on every retry, so a flaky network never records an answer twice. */
   idempotencyKey: string;
